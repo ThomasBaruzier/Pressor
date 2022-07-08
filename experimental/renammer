@@ -1,0 +1,31 @@
+#!/bin/bash
+
+readarray -t files <<< $(find . -type f)
+readarray -t dates <<< $(find . -type f -printf '%CY%Cm%Cd-%CH%CM%CS\n' -type f | sed -E 's:.{11}$::g')
+index=0
+
+for i in "${files[@]}"; do
+  if [[ "$i" =~ '20'[1-2][0-9][-|\.|_]*[0-1][0-9][-|\.|_]*[0-3][0-9][-|\.|_]{0,1}[0-9]{0,2}[-|\.|_]{0,1}[0-9]{0,2}[-|\.|_]{0,1}[0-9]{0,2} ]]; then
+    date="${BASH_REMATCH//[^0-9]/}"
+    if [[ "${#date}" == 14 ]]; then
+      date="${date:0:8}_${date:8}"
+      echo -ne "\e[32m"
+    else
+      date="${date:0:8}_000000"
+      echo -ne "\e[33m"
+    fi
+  else
+    date="${dates[index]}"
+    echo -ne "\e[31m"
+  fi
+  increment=1
+  while [[ "$log" =~ "$date" ]]; do
+    date="${date:0:15}_$increment"
+    ((increment++))
+  done
+  echo -e "$date\e[35m > \e[0m$i"
+  log+="$date\n"
+  ((index++))
+done
+
+echo -e "${log::-2}" > log
