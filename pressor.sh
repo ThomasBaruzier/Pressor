@@ -8,14 +8,14 @@ overwrite='y'
 warnings='y'
 logging='n'
 
-videoFormat='av1'
+videoFormat='lowComplexity'
 imageFormat='avif'
 
 threads='12'
 crf='45'
 
 compressVideos='y'
-compressImages='y'
+compressImages='n'
 compressMusics='n'
 
 musicBitrate='128'
@@ -30,7 +30,7 @@ avifMinQuality='0'
 
 crop='368:448'
 doCrop='n'
-maxSize='3000'
+maxSize='1280'
 doMaxSize='y'
 
 #=-=# END OF CONFIG #=-=#
@@ -145,10 +145,10 @@ for ((i=0; i < "${#initNames[@]}"; i++)); do
               echo "WARNING : birate in config > bitrate of music : selecting the original bitrate"
             fi
             mkdir -p "${finalName%/*}"
-            ffmpeg -i "${initNames[i]}" -y -loglevel warning -r 1 '/tmp/cover.jpg'
-            ffmpeg -i "${initNames[i]}" -loglevel warning -f wav - | opusenc --quiet --bitrate "$musicBitrate" --picture '/tmp/cover.jpg' --title "$title" --artist "$artist" --album "$album" --genre "$genre" --date "$date" --tracknumber "$tracknumber" --comment lyrics="$lyrics" --comment comment="$comment" - "$finalName-ffmpeg.opus" 2> /dev/null
+            ffmpeg -i "${initNames[i]}" -y -loglevel error -r 1 '/tmp/cover.jpg'
+            ffmpeg -i "${initNames[i]}" -loglevel error -f wav - | opusenc --quiet --bitrate "$musicBitrate" --picture '/tmp/cover.jpg' --title "$title" --artist "$artist" --album "$album" --genre "$genre" --date "$date" --tracknumber "$tracknumber" --comment lyrics="$lyrics" --comment comment="$comment" - "$finalName-ffmpeg.opus" 2> /dev/null
             if [[ "$?" == '1' ]]; then
-              echo DEBUG : ffmpeg -i "${initNames[i]}" -loglevel warning -f wav - \| opusenc --quiet --bitrate "$musicBitrate" --picture '/tmp/cover.jpg' --title "$title" --artist "$artist" --album "$album" --genre "$genre" --date "$date" --tracknumber "$tracknumber" --comment lyrics="$lyrics" --comment comment="$comment" - "$finalName-ffmpeg.opus" 2> /dev/null
+              echo DEBUG : ffmpeg -i "${initNames[i]}" -loglevel error -f wav - \| opusenc --quiet --bitrate "$musicBitrate" --picture '/tmp/cover.jpg' --title "$title" --artist "$artist" --album "$album" --genre "$genre" --date "$date" --tracknumber "$tracknumber" --comment lyrics="$lyrics" --comment comment="$comment" - "$finalName-ffmpeg.opus" 2> /dev/null
             fi
             rm -f '/tmp/cover.jpg'
           fi
@@ -215,8 +215,15 @@ for ((i=0; i < "${#initNames[@]}"; i++)); do
                 --aq-mode=0 --deltaq-mode=1 --enable-qm=1 \
                 --tune=psnr --tune-content=default \
                 --fpf="/tmp/pass-$random" -o "$finalName-video.mkv" && \
-              ffmpeg "$overwrite" -loglevel warning -i "$finalName-video.mkv" -i "${initNames[i]}" -map 0:v -c:v copy -map 1:a? -c:a libopus -b:a "$audioBitrate"k -map 0:s? -max_interleave_delta 0 "$finalName-ffmpeg.mkv" && \
+              ffmpeg "$overwrite" -loglevel error -i "$finalName-video.mkv" -i "${initNames[i]}" -map 0:v -c:v copy -map 1:a? -c:a libopus -b:a "$audioBitrate"k -map 0:s? -max_interleave_delta 0 "$finalName-ffmpeg.mkv" && \
               rm "$finalName-video.mkv"
+
+            # for video editors
+            elif [[ "$videoFormat" == 'lowComplexity' ]]; then
+              ffmpeg "$overwrite" -i "${initNames[i]}" -strict -1 -stats -loglevel error $args \
+              -c:v dnxhd -profile:v dnxhr_hq -pix_fmt yuv422p -c:a pcm_s16le -f mov "$finalName-ffmpeg.mov"
+#              ffmpeg "$overwrite" -i "${initNames[i]}" -strict -1 -stats -loglevel error -preset ultrafast -crf 20 -tune fastdecode $args \
+#              -map 0:v -c:v libx264 -map 0:a? -c:a aac -b:a 128k -map 0:s? -max_interleave_delta 0 "$finalName-ffmpeg.mp4"
 
             # elif [[ "$videoFormat" == 'vvc' ]]; then
 
