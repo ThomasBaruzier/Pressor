@@ -11,31 +11,14 @@
 
 menu() {
 
-  while true; do
+  # initialize menu
+  clear; tput civis; hovering=0
+  trap 'clear; tput cnorm; exit' 2
 
-    if [[ "$rows" != "$LINES" || "$columns" != "$COLUMNS" ]]; then
-      selected=0
-      drawMenu 'INPUT FOLDER/FILES' 'OUTPUT DIRECTORY' 'PARAMETERS' 'COMPRESS'
-    fi
-
-    columns="$COLUMNS"
-    rows="$LINES"
-    sleep 0.02
-
-  done
-
-}
-
-drawMenu() {
-
-  clear
-  tput civis
-  trap 'tput cnorm; exit' 2 3
+  # draw menu layout
   if (( "$COLUMNS" > 35 )); then
-
     unset border
     for ((i=0; i < "$COLUMNS"; i++)); do border+=':'; done
-
     blank="$(((COLUMNS-30)/2))"
     echo -e "\e[4;0f\e[36m${border}\e[$((LINES-2));0f${border}\\e[0m\e[0;0f"
     echo -e "\e[2;${blank}f   ___"
@@ -43,35 +26,44 @@ drawMenu() {
     echo -e "\e[4;$((blank+1))f/ ___/ __/ -_|_-<(_-</ _ \/ __/"
     echo -e "\e[5;${blank}f/_/  /_/  \__/___/___/\___/_/"
     echo -e "\e[$(((LINES/2-9)))B"
-
   else
-
     echo -e "\e[$(((LINES/2)-4))B"
-
   fi
 
+  # display options
   while true; do
-
     optionIndex=0
     for i in "${@}"; do
-      if [[ "$optionIndex" == "$selected" ]]; then
-        echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32m> ${i} <\e[0m\e[B"
-      else
-        echo -e "\e[$(((COLUMNS-${#i}-4)/2))C  ${i}  \e[B"
-      fi
-    ((optionIndex++))
+      [ "$optionIndex" = "$hovering" ] && [ "${isSelected[optionIndex]}" = true ] && \
+          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32mv ${i} v\e[0m\e[B"
+      [ "$optionIndex" = "$hovering" ] && [ "${isSelected[optionIndex]}" = '' ] && \
+          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32m> ${i} <\e[0m\e[B"
+      [ "$optionIndex" != "$hovering" ] && [ "${isSelected[optionIndex]}" = true ] && \
+          echo -e "\e[$(((COLUMNS-${#i}-4)/2))Cv ${i} v\e[B"
+      [ "$optionIndex" != "$hovering" ] && [ "${isSelected[optionIndex]}" = '' ] && \
+          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C  ${i}  \e[B"
+      ((optionIndex++))
     done
     echo -e "\e[$((${#@}*2+1))A"
 
+    # process keyboard input
     read -rsn1 keyboardInput
-    if [[ "$keyboardInput" == 'A' && (( "$selected" > '0' )) ]]; then
-      ((selected--))
-    elif [[ "$keyboardInput" == 'B' && (( "$selected" < "$((${#@}-1))" )) ]]; then
-      ((selected++))
-    fi
+    case "$keyboardInput" in
+      A) if (( "$hovering" > 0 )); then ((hovering--)); fi;;
+      B) if (( "$hovering" < "$((${#@}-1))" )); then ((hovering++)); fi;;
+      C) isSelected[hovering]=true;;
+      D) unset isSelected[hovering];;
+      '')if [[ "${isSelected[hovering]}" == true ]]; then
+           unset isSelected[hovering]
+         else
+           isSelected[hovering]=true
+         fi;;
+    esac
 
   done
 
 }
 
-menu
+while true; do
+  menu 'INPUT FOLDER/FILES' 'OUTPUT DIRECTORY' 'PARAMETERS' 'COMPRESS'
+done
