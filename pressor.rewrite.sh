@@ -12,8 +12,8 @@
 menu() {
 
   # initialize menu
-  clear; tput civis
-  trap 'clear; tput cnorm; exit' 2
+  clear; tput civis; stty -echo
+  trap 'clear; tput cnorm; stty echo' EXIT
 
   # draw menu layout
   if (( "$COLUMNS" > 35 )); then
