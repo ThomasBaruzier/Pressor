@@ -12,7 +12,7 @@
 menu() {
 
   # initialize menu
-  clear; tput civis; hovering=0
+  clear; tput civis
   trap 'clear; tput cnorm; exit' 2
 
   # draw menu layout
@@ -47,23 +47,27 @@ menu() {
     echo -e "\e[$((${#@}*2+1))A"
 
     # process keyboard input
-    read -rsn1 keyboardInput
-    case "$keyboardInput" in
-      A) if (( "$hovering" > 0 )); then ((hovering--)); fi;;
-      B) if (( "$hovering" < "$((${#@}-1))" )); then ((hovering++)); fi;;
-      C) isSelected[hovering]=true;;
-      D) unset isSelected[hovering];;
-      '')if [[ "${isSelected[hovering]}" == true ]]; then
-           unset isSelected[hovering]
-         else
-           isSelected[hovering]=true
-         fi;;
-    esac
-
+    read -rsn1 -t 0.5 keyboardInput
+    if [[ "$?" == 142 ]]; then
+      [[ "$(tput cols)" != "$columns" || "$(tput lines)" != "$lines" ]] && return
+    else
+      case "$keyboardInput" in
+        A) [ "$hovering" != 0 ] && ((hovering--));;
+        B) (( "$hovering" < "$((${#@}-1))" )) && ((hovering++));;
+        C) isSelected[hovering]=true;;
+        D) unset isSelected[hovering];;
+        '')[ "${isSelected[hovering]}" = true ] && \
+           unset isSelected[hovering] || \
+           isSelected[hovering]=true;;
+      esac
+    fi
   done
 
 }
 
+hovering=0
 while true; do
+  columns="$(tput cols)"
+  lines="$(tput lines)"
   menu 'INPUT FOLDER/FILES' 'OUTPUT DIRECTORY' 'PARAMETERS' 'COMPRESS'
 done
