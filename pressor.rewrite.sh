@@ -30,24 +30,49 @@ menu() {
     echo -e "\e[$(((LINES/2)-4))B"
   fi
 
+  # arguments handling
+  args=(${*})
+  unset subOptions mainOptions
+  for ((i = 0; i < "${#args[@]}"; i++)); do
+    case "${args[i]}" in
+      -*) subOptions+=("${args[i]:1}");;
+      *) mainOptions+=("${args[i]}");;
+    esac
+  done
+
   # display options
   while true; do
     optionIndex=0
-    for i in "${@}"; do
+    for i in "${mainOptions[@]}"; do
       [ "$optionIndex" = "$hovering" ] && [ "${isSelected[optionIndex]}" = true ] && \
-          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32mv ${i} v\e[0m\e[B"
+          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32mv ${i} v\e[0m" && \
+          echo -e "\e[$(((COLUMNS-${#subOptions[@]})/2))C\e[31m${subOptions[@]}\e[0m"
       [ "$optionIndex" = "$hovering" ] && [ "${isSelected[optionIndex]}" = '' ] && \
           echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32m> ${i} <\e[0m\e[B"
       [ "$optionIndex" != "$hovering" ] && [ "${isSelected[optionIndex]}" = true ] && \
-          echo -e "\e[$(((COLUMNS-${#i}-4)/2))Cv ${i} v\e[B"
+          echo -e "\e[$(((COLUMNS-${#i}-4)/2))Cv ${i} v" && \
+          echo -e "\e[$(((COLUMNS-${#subOptions[@]})/2))C\e[31m${subOptions[@]}\e[0m"
       [ "$optionIndex" != "$hovering" ] && [ "${isSelected[optionIndex]}" = '' ] && \
-          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C  ${i}  \e[B"
+          echo -e "\e[$(((COLUMNS-${#i})/2))C${i}\e[B"
       ((optionIndex++))
     done
+
+#    for i in "${@}"; do
+#      [ "$optionIndex" = "$hovering" ] && [ "${isSelected[optionIndex]}" = true ] && \
+#          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32mv ${i} v\e[0m\e[B"
+#      [ "$optionIndex" = "$hovering" ] && [ "${isSelected[optionIndex]}" = '' ] && \
+#          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C\e[32m> ${i} <\e[0m\e[B"
+#      [ "$optionIndex" != "$hovering" ] && [ "${isSelected[optionIndex]}" = true ] && \
+#          echo -e "\e[$(((COLUMNS-${#i}-4)/2))Cv ${i} v\e[B"
+#      [ "$optionIndex" != "$hovering" ] && [ "${isSelected[optionIndex]}" = '' ] && \
+#          echo -e "\e[$(((COLUMNS-${#i}-4)/2))C  ${i}  \e[B"
+#      ((optionIndex++))
+#    done
+
     echo -e "\e[$((${#@}*2+1))A"
 
     # process keyboard input
-    read -rsn1 -t 0.5 keyboardInput
+    read -rsn1 -t 2 keyboardInput
     if [[ "$?" == 142 ]]; then
       [[ "$(tput cols)" != "$columns" || "$(tput lines)" != "$lines" ]] && return
     else
@@ -69,5 +94,5 @@ hovering=0
 while true; do
   columns="$(tput cols)"
   lines="$(tput lines)"
-  menu 'INPUT FOLDER/FILES' 'OUTPUT DIRECTORY' 'PARAMETERS' 'COMPRESS'
+  menu 'INPUT_FOLDER/FILES' '-Input' 'OUTPUT_DIRECTORY' 'PARAMETERS' 'COMPRESS'
 done
