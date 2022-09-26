@@ -1,7 +1,54 @@
 #!/bin/bash
 
-# help menu
 
+#=-----=# CONFIG #=-----=#
+
+input=''
+output=''
+codec=('')
+
+rename=''
+renamePhotos=''
+renameVideos=''
+
+crop=''
+cropPhotos=''
+cropVideos=''
+
+overwrite=''
+recursive=''
+verbose=''
+logging=''
+
+videoFormat='lowComplexity'
+imageFormat='avif'
+
+threads='12'
+crf='45'
+
+compressVideos='y'
+compressImages='n'
+compressAudio='n'
+
+musicBitrate='128'
+audioBitrate='64'
+
+av1Quality='2'
+vp9Quality='-5'
+avifQuality='0'
+
+avifMaxQuality='63'
+avifMinQuality='0'
+
+crop='368:448'
+doCrop='n'
+maxSize='1280'
+doMaxSize='y'
+
+#=-=# END OF CONFIG #=-=#
+
+
+# help menu
 usage() {
 
   echo "USAGE : $0 <input> <output> [arguments] "
@@ -20,16 +67,19 @@ usage() {
   echo "    --crop-photos <width>x<height> : For photos only"
   echo "    --crop-videos <width>x<height> : For videos only"
   echo
-  echo "  --max-size <number> : Set a maximum size for photos and videos"
-  echo "    --max-size-photos <number> : For photos only"
-  echo "    --max-size-videos <number> : For videos only"
+  echo "  --max-size or -m <number> : Set a maximum size for photos and videos"
+  echo "    --max-size-photos or -m <number> : For photos only"
+  echo "    --max-size-videos or -m <number> : For videos only"
   echo
   echo "  --rename : rename output to photos and videos timestamps"
   echo "    --rename-photos : For photos only"
   echo "    --rename-videos : For videos only"
+  echo "    --rename-audio : For audio only"
+  echo
+  echo "  --compress-[videos|photos|audio] : will target videos"
   echo
   echo "  --verbose or -v : print more information"
-  echo "  --log or -l <file> : --verbose redirected to a file"
+  echo "  --log or -l {file} : --verbose redirected to a file"
   echo "  --overwrite or -o : overwrites already compressed files"
   echo "  --threads or -t : control the usage of computing ressources"
   echo "  --crf : set video quality"
