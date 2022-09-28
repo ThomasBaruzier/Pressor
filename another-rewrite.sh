@@ -55,7 +55,7 @@ usage() {
   echo
   echo "Arguments :"
   echo
-  echo "  --codec or -c <vp9|av1, jpg|avif, mp3|opus>"
+  echo "  --codec or -c {vp9|av1|jpg|avif|mp3|opus}"
   echo "  --recursive or -r : Include subfolders"
   echo
   echo "  --debug or -d : print debug information"
@@ -63,20 +63,16 @@ usage() {
   echo
   echo "Not yet implemented :"
   echo
-  echo "  --crop <width>x<height> : Crop to fit photos and videos"
-  echo "    --crop-photos <width>x<height> : For photos only"
-  echo "    --crop-videos <width>x<height> : For videos only"
+  echo "  --crop or --crop-{photos|videos} <width>x<height> : Crop to fit"
+  echo "  --max or --max-{photos|videos} <pixels> : Set a maximum lenght size"
   echo
-  echo "  --max-size or -m <number> : Set a maximum size for photos and videos"
-  echo "    --max-size-photos or -m <number> : For photos only"
-  echo "    --max-size-videos or -m <number> : For videos only"
-  echo
-  echo "  --rename : rename output to photos and videos timestamps"
+  echo "  --rename or --rename-{photos|videos} : rename output to files timestamps"
   echo "    --rename-photos : For photos only"
   echo "    --rename-videos : For videos only"
   echo "    --rename-audio : For audio only"
   echo
-  echo "  --compress-[videos|photos|audio] : will target videos"
+  echo "  --include-{videos|photos|audio} : will target videos"
+  echo "  --exclude-{videos|photos|audio} : will target videos"
   echo
   echo "  --verbose or -v : print more information"
   echo "  --log or -l {file} : --verbose redirected to a file"
