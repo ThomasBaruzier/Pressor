@@ -3,32 +3,22 @@
 
 #=-----=# CONFIG #=-----=#
 
-input=''
-output=''
-codec=('')
+input=
+output=
+codec=()
 
-rename=''
-renamePhotos=''
-renameVideos=''
+rename=(n) # {y|n|photos|videos|audio}
+crop=(n) # {y|n|photos|video} {}
 
-crop=''
-cropPhotos=''
-cropVideos=''
+overwrite=
+recursive=
+verbose=
+logging=
+threads=
+crf=
 
-overwrite=''
-recursive=''
-verbose=''
-logging=''
-
-videoFormat='lowComplexity'
-imageFormat='avif'
-
-threads='12'
-crf='45'
-
-compressVideos='y'
-compressImages='n'
-compressAudio='n'
+include=() # {all|photos|videos|audio}
+exclude=() # {photos|videos|audio}
 
 musicBitrate='128'
 audioBitrate='64'
@@ -40,8 +30,6 @@ avifQuality='0'
 avifMaxQuality='63'
 avifMinQuality='0'
 
-crop='368:448'
-doCrop='n'
 maxSize='1280'
 doMaxSize='y'
 
@@ -53,36 +41,45 @@ usage() {
 
   echo "USAGE : $0 <input> <output> [arguments] "
   echo
-  echo "Arguments :"
+  echo "Input options :"
   echo
-  echo "  --codec or -c {vp9|av1|jpg|avif|mp3|opus}"
-  echo "  --recursive or -r : Include subfolders"
+  echo "  -i, --include {videos|photos|audio}"
+  echo "  -e, --exclude {videos|photos|audio}"
+  echo "      > Include or exclude file types"
   echo
-  echo "  --debug or -d : print debug information"
-  echo "  --help or -h : print this menu"
+  echo "  -r, --recursive"
+  echo "      > Include subfolders"
+  echo "  -o, --overwrite"
+  echo "      > Overwrites already compressed files"
+  echo "  -t, --threads <all|number-of-threads>"
+  echo "      > Number of threads to use"
   echo
-  echo "Not yet implemented :"
+  echo "Output options :"
   echo
-  echo "  --crop or --crop-{photos|videos} <width>x<height> : Crop to fit"
-  echo "  --max or --max-{photos|videos} <pixels> : Set a maximum lenght size"
+  echo "  -C, --codec {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"
+  echo "      > Choose encoding codecs and quality parameters"
+  echo "      > Quality arguments : (values are sorted from best to worse)"
+  echo "        • jpg <q:scale> (2-31) <preset> (placebo-...-veryfast)"
+  echo "        • jxl"
+  echo "        • avif <min> (0-63) <max> (0-63) <speed> (0-10)"
+  echo "        • h264|h265 <crf> (0-63) <preset> (placebo-...-veryfast) <opus-bitrate> (256-6) <opus-complexity> (10-0)"
+  echo "        • vp9 <crf> (0-63) <cpu-used> (-8 - 8) <opus-bitrate> (256-6)"
+  echo "        • av1 <cq-level> (0-8) <cpu-used> (0-9) <opus-bitrate> (256-6)"
+  echo "        • vvc"
+  echo "        • mp3|opus <bitrate>"
+  echo "      > Example : -C vp9 21 -5 avif 30 mp3 192 opus"
+  echo "  -c, --crop {all|photos|videos} <width>x<height>"
+  echo "      > Crop and zoom to fit whithout distortions"
+  echo "  -m, --max-size {all|photos|videos} <pixels>"
+  echo "      > Set a maximum lenght size in pixels"
+  echo "  -R, --rename {all|photos|videos|audio}"
+  echo "      > Rename the output files to their timestamps"
   echo
-  echo "  --rename or --rename-{photos|videos} : rename output to files timestamps"
-  echo "    --rename-photos : For photos only"
-  echo "    --rename-videos : For videos only"
-  echo "    --rename-audio : For audio only"
+  echo "Other"
   echo
-  echo "  --include-{videos|photos|audio} : will target videos"
-  echo "  --exclude-{videos|photos|audio} : will target videos"
-  echo
-  echo "  --verbose or -v : print more information"
-  echo "  --log or -l {file} : --verbose redirected to a file"
-  echo "  --overwrite or -o : overwrites already compressed files"
-  echo "  --threads or -t : control the usage of computing ressources"
-  echo "  --crf : set video quality"
-  echo "  --audio-bitrate : set audio bitrate"
-  echo "  --av1-quality : set av1 quality"
-  echo "  --vp9-quality: set vp9 quality"
-  echo "  --avif-quality : set avif quality"
+  echo "  -v, --verbose : print more information"
+  echo "  -l, --log {file} : --verbose redirected to a file"
+  echo "  -h, --help : print this menu"
   echo
   exit
 
@@ -112,7 +109,7 @@ for ((i=0; i < "${#args[@]}"; i++)); do
       ((i--));;
 
     '--recursive'|'-r') recursivity='true';;
-    '--debug'|'-d') debug='true';;
+    '--verbose'|'-v') verbose='true';;
     '--help'|'-h') usage;;
 
     -*)echo -e "\e[31mERROR : Invalid argument : '${args[i]}'\e[0m"
@@ -140,8 +137,8 @@ done
 [[ -z "$input" ]] && echo -e "\e[31mERROR : Input and output paths aren't set\e[0m\n" && exit
 [[ -z "$output" ]] && echo -e "\e[31mERROR : Output path isn't set\e[0m\n" && exit
 
-# debugging
-if [[ "$debug" == 'true' ]]; then
+# verbose information
+if [[ "$verbose" == 'true' ]]; then
   [[ -z "$input" ]] && input='not set'
   [[ -z "$output" ]] && output='not set'
   [[ -z "$recursivity" ]] && recursivity='false'
