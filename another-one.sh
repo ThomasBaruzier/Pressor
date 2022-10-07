@@ -14,9 +14,10 @@
 
 printHelp() {
 
+  echo
   echo "USAGE : $0 <input> <output> [arguments]"
   echo
-  echo "Input options :"
+  echo "INPUT OPTIONS :"
   echo
   echo "  -i, --include {videos|photos|audio}"
   echo "  -e, --exclude {videos|photos|audio}"
@@ -79,21 +80,40 @@ printHelp() {
 }
 
 
-argumentParsing() {
+argsParsing() {
 
-  args=($*); [[ -z "${args[0]}" ]] && printHelp
+  args=($*); [[ -z "${args[0]}" ]] && error 'noArg'
   for ((i=0; i < "${#args[@]}"; i++)); do
+    previousArg="${args[i]}"
+    echo ""
     case "${args[i]}" in
-      '-i'|'--include') nextArgs=$(getNextArgs); i="$?"; echo "i=$i, args=${nextArgs[@]}";;
-      '-e'|'--exclude') nextArgs=$(getNextArgs); i="$?"; echo "i=$i, args=${nextArgs[@]}";;
-      '-r'|'--recursive') echo "Recursive on";;
-      '-o'|'--overwrite') echo "Overwrite on";;
-      '-t'|'--threads') echo "Threads";;
-#      *) printHelp;;
+      '-i'|'--include'|'-e'|'--exclude') getNextArgs; ieOptions;;
+      '-r'|'--recursive') recursive='true';;
+      '-o'|'--overwrite') overwrite='true';;
+#      '-t'|'--threads') threads="${args[i+1]}";;
+#      *) error 'badArg' "${args[i]}";;
+    esac
+    [ "${args[i+1]}" = '' ] && exit
+  done
+
+}
+
+
+ieOptions() {
+
+  [[ "$previousArg" =~ '-i' ]] && ieVar='include' || ieVar='exclude'
+  for ((i=0; i < "${#nextArgs[@]}"; i++)); do
+    case "${nextArgs[i]}" in
+      'movie'|'movies'|'video'|'videos') echo "Videos : ${ieVar}d";;
+      'image'|'images'|'photo'|'photos') echo "Photos : ${ieVar}d";;
+      'music'|'musics'|'audio'|'audios') echo "Audio files : ${ieVar}d";;
+      '') error 'noParam' "-${ieVar:0:1} or --$ieVar";;
+      *) error 'badParam' "-${ieVar:0:1} or --$ieVar" "${nextArgs[i]}";;
     esac
   done
 
 }
+
 
 getNextArgs() {
 
@@ -102,8 +122,23 @@ getNextArgs() {
     ((i++))
     nextArgs+=("${args[i]}")
   done
-  echo "$((i+2)) ${nextArgs[@]}"
 
 }
 
-argumentParsing "$@"
+
+error() {
+
+  echo -en '\e[31m\n> ERROR : '
+  case "$1" in
+    'badArg') echo "Unknown argument provided : $2";;
+    'noArg') echo "No arguments provided";;
+    'badParam') echo "Wrong parameter provided for argument $2 : $3";;
+    'noParam') echo "No parameter provided for argument $2";;
+  esac
+  echo -en '\e[0m'
+  printHelp
+
+}
+
+
+argsParsing "$@"
