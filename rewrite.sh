@@ -121,8 +121,12 @@ for ((i=0; i < "${#args[@]}"; i++)); do
               while [[ ! "${args[i]:0:1}" =~ 'h264'|'h265'|'vp9'|'av1'|'vvc'|'jpg'|'avif'|'jxl'|'mp3'|'opus' && "${args[i]}" != '' ]]; do
                 case "$videoCodec" in
                   'h264'|'h265')
-                    case "${args[i]}" in
-
+                    if [[ -z "$h264-5Crf" ]]; then
+                      if (( "${args[i]}" > 0 && "${args[i]}" < 64 )); then
+                        h264-5Crf="${args[i]}"
+                      else
+                        echo -e "\e[31mERROR : Bad CRF (${args[i]}). This value should be between 0 and 63"
+                    else
 
                     esac
                   'vp9')
