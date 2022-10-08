@@ -1,21 +1,23 @@
 #!/bin/bash
 
+#=---------------=#
+# CONFIG FUNCTION #
+#=---------------=#
 
-config() {
-  :
-}
+getConfig() {
 
-getDefaults() {
-
+  videos='true'
+  photos='true'
+  audio='true'
   recursive='false'
   overwrite='false'
   threads='all'
 
 }
 
-###############################
-# DEBUGGING RELATED FUNCTIONS #
-###############################
+#=-------------------=#
+# DEBUGGING FUNCTIONS #
+#=-------------------=#
 
 printHelp() {
 
@@ -98,11 +100,11 @@ debugInfo() {
   echo "> Input : "
   echo "> Output : "
   echo
-  echo "> Photos : "
-  echo "> Videos : "
-  echo "> Audio : "
-  echo "> Included extentions : "
-  echo "> Excluded extentions : "
+  echo "> Photos : $photos"
+  echo "> Videos : $videos"
+  echo "> Audio : $audio"
+  echo "> Included extentions : ${includedExtentions[@]}"
+  echo "> Excluded extentions : ${excludedExtentions[@]}"
   echo
   echo "> Recursive : $recursive"
   echo "> Overwrite : $overwrite"
@@ -119,6 +121,7 @@ error() {
     'noArg') echo "No arguments provided";;
     'badParam') echo "Wrong parameter provided for argument $2 : $3";;
     'noParam') echo "No parameter provided for argument $2";;
+    'badPath') echo "Non-existing path provided : $2";;
   esac
   echo -en '\e[0m'
   printHelp
@@ -139,28 +142,30 @@ info() {
 
   echo -en '\nINFO : '
   case "$1" in
-    *) :;
+    'noFile') echo "No file provided for $2 : Using $3";;
   esac
 
 }
 
-##############################
-# ARGUMENT RELATED FUNCTIONS #
-##############################
+#=--------------=#
+# ARGS FUNCTIONS #
+#=--------------=#
 
 processArgs() {
 
-  args=($*); [[ -z "${args[0]}" ]] && error 'noArg'
-  getDefaults
+  getConfig
+  args=($*); [ "$args" = '' ] && error 'noArg'
   [[ -n "$threads" ]] && threadOption "$threads"
   for ((i=0; i < "${#args[@]}"; i++)); do
     previousArg="${args[i]}"
     case "${args[i]}" in
-      '-i'|'--include'|'-e'|'--exclude') getNextArgs; ieOptions;;
+      '-i'|'--include') getNextArgs; includeOption;;
+      '-e'|'--exclude') getNextArgs; excludeOption;;
       '-r'|'--recursive') recursive='true';;
       '-o'|'--overwrite') overwrite='true';;
       '-t'|'--threads') ((i++)); threadOption "${args[i]}";;
       '-v'|'--verbose') verbose='true';;
+      '-l'|'--log') getNextArgs; logOption;;
       '-h'|'--help') help='true';;
       *) error 'badArg' "${args[i]}";;
     esac
@@ -180,42 +185,41 @@ getNextArgs() {
 
 }
 
-ieOptions() {
+includeOption() {
 
-  [[ "$previousArg" =~ '-i' ]] && ieVar='include' || ieVar='exclude'
-  [[ -z "${nextArgs[@]}" ]] && error 'noParam' "-${ieVar:0:1} or --$ieVar"
+  [ "$nextArgs" = '' ] && error 'noParam' '-e or --exclude'
   for ((j=0; j < "${#nextArgs[@]}"; j++)); do
     case "${nextArgs[j]}" in
-      'image'*|'photo'*|'picture'*) $ieVar 'photos';;
-      'movie'*|'video'*) $ieVar 'videos';;
-      'music'*|'audio'*) $ieVar 'audio';;
-      'all'|'everything') $ieVar 'all';;
-      'none'|'nothing') $ieVar 'none';;
-      *) extention="${nextArgs[j]/\./}"
-         functionName="${ieVar}$dExtentions"
-         $functionName+=("${extention,,}");;
+      'image'*|'photo'*|'picture'*) photos='true';;
+      'movie'*|'video'*) videos='true';;
+      'music'*|'audio'*) audio='true';;
+      'all'|'everything') photos='true' && videos='true' && audio='true';;
+      'none'|'nothing') photos='false' && videos='false' && audio='false';;
+      *) extention="${nextArgs[j]/\./}" && includedExtentions+=("${extention,,}")
     esac
   done
 
 }
 
-include() {
+excludeOption() {
 
-  echo "Including $1 files"
-#  $1='true'
-
-}
-
-exclude() {
-
-  echo "Excluding $1 files"
-#  $1='false'
+  [ "$nextArgs" = '' ] && error 'noParam' '-i or --exclude'
+  for ((j=0; j < "${#nextArgs[@]}"; j++)); do
+    case "${nextArgs[j]}" in
+      'image'*|'photo'*|'picture'*) photos='false';;
+      'movie'*|'video'*) videos='false';;
+      'music'*|'audio'*) audio='false';;
+      'all'|'everything') photos='false' && videos='false' && audio='false';;
+      'none'|'nothing') photos='true' && videos='true' && audio='true';;
+      *) extention="${nextArgs[j]/\./}" && excludedExtentions+=("${extention,,}")
+    esac
+  done
 
 }
 
 threadOption() {
 
-  [[ -z "$1" ]] && error 'noParam' "-t or --threads"
+  [ "$1" = '' ] && error 'noParam' '-t or --threads'
   availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
   case "$1" in
     'all'|'max'|'everything')
@@ -229,8 +233,20 @@ threadOption() {
 
 }
 
-################
+logOption() {
+
+  [ "$nextArgs" = '' ] && info 'noFile' '-l or --logging' "log.txt"
+  if [[ "$nextArgs" =~ '/' ]]; then
+     echo "testing ${nextArgs%/*}"
+     [[ ! -d "${nextArgs%/*}" ]] && error 'badPath' "$nextArgs"
+  else
+    echo "file for logging : $nextArgs"
+  fi
+
+}
+
+#=------------=#
 # MAIN PROGRAM #
-################
+#=------------=#
 
 processArgs "$@"
