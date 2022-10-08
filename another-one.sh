@@ -1,10 +1,11 @@
 #!/bin/bash
 
+
 config() {
   :
 }
 
-defaults() {
+getDefaults() {
 
   recursive='false'
   overwrite='false'
@@ -12,25 +13,9 @@ defaults() {
 
 }
 
-
-debugInfo() {
-
-  echo
-  echo "INPUT OPTIONS :"
-  echo
-  echo "> Input : "
-  echo "> Output : "
-  echo
-  echo "> Targeting : "
-  echo "> Included extentions : "
-  echo "> Excluded extentions : "
-  echo
-  echo "> Recursive : $recursive"
-  echo "> Overwrite : $overwrite"
-  echo "> Threads : $threads"
-  echo
-
-}
+###############################
+# DEBUGGING RELATED FUNCTIONS #
+###############################
 
 printHelp() {
 
@@ -95,28 +80,36 @@ printHelp() {
 #  echo "      > Replicate the input folder hierarachy for output"
 #  echo "      > Default : true"
 #  echo
-#  echo "Other"
-#  echo
-#  echo "  -v, --verbose : print more information"
-#  echo "  -l, --log {file} : --verbose redirected to a file"
-#  echo "  -h, --help : print this menu"
-#  echo
+  echo "Other options :"
+  echo
+  echo "  -v, --verbose : print more information"
+  echo "  -l, --log {file} : --verbose redirected to a file"
+  echo "  -h, --help : print this menu"
+  echo
   exit
 
 }
 
-# USEFUL FUNCTIONS
+debugInfo() {
 
-getNextArgs() {
-
-  unset nextArgs
-  while [[ "${args[i+1]:0:1}" != '-' && -n "${args[i+1]}" ]]; do
-    ((i++))
-    nextArgs+=("${args[i]}")
-  done
+  echo
+  echo "INPUT OPTIONS :"
+  echo
+  echo "> Input : "
+  echo "> Output : "
+  echo
+  echo "> Photos : "
+  echo "> Videos : "
+  echo "> Audio : "
+  echo "> Included extentions : "
+  echo "> Excluded extentions : "
+  echo
+  echo "> Recursive : $recursive"
+  echo "> Overwrite : $overwrite"
+  echo "> Threads : $threads"
+  echo
 
 }
-
 
 error() {
 
@@ -132,7 +125,6 @@ error() {
 
 }
 
-
 warn() {
 
   echo -en '\e[33m\nWARNING : '
@@ -143,25 +135,50 @@ warn() {
 
 }
 
-# ARGUMENT RELATED FUNCTIONS
+info() {
 
-argsParsing() {
+  echo -en '\nINFO : '
+  case "$1" in
+    *) :;
+  esac
+
+}
+
+##############################
+# ARGUMENT RELATED FUNCTIONS #
+##############################
+
+processArgs() {
 
   args=($*); [[ -z "${args[0]}" ]] && error 'noArg'
+  getDefaults
+  [[ -n "$threads" ]] && threadOption "$threads"
   for ((i=0; i < "${#args[@]}"; i++)); do
     previousArg="${args[i]}"
     case "${args[i]}" in
       '-i'|'--include'|'-e'|'--exclude') getNextArgs; ieOptions;;
       '-r'|'--recursive') recursive='true';;
       '-o'|'--overwrite') overwrite='true';;
-      '-t'|'--threads') ((i++)); threadOption;;
-      '-d') :;;
+      '-t'|'--threads') ((i++)); threadOption "${args[i]}";;
+      '-v'|'--verbose') verbose='true';;
+      '-h'|'--help') help='true';;
       *) error 'badArg' "${args[i]}";;
     esac
   done
+  [ "$verbose" = 'true' ] && debugInfo
+  [ "$help" = 'true' ] && printHelp
 
 }
 
+getNextArgs() {
+
+  unset nextArgs
+  while [[ "${args[i+1]:0:1}" != '-' && -n "${args[i+1]}" ]]; do
+    ((i++))
+    nextArgs+=("${args[i]}")
+  done
+
+}
 
 ieOptions() {
 
@@ -169,39 +186,51 @@ ieOptions() {
   [[ -z "${nextArgs[@]}" ]] && error 'noParam' "-${ieVar:0:1} or --$ieVar"
   for ((j=0; j < "${#nextArgs[@]}"; j++)); do
     case "${nextArgs[j]}" in
-      'image'*|'photo'*|'picture'*)
-        echo "Photos : ${ieVar}d";;
-      'movie'*|'video'*)
-        echo "Videos : ${ieVar}d";;
-      'music'*|'audio'*)
-        echo "Audio files : ${ieVar}d";;
-      'all'|'everything')
-        echo "Everything : ${ieVar}d";;
-      'none'|'nothing')
-        echo "Nothing : ${ieVar}d";;
-      *) error 'badParam' "-${ieVar:0:1} or --$ieVar" "${nextArgs[j]}";;
+      'image'*|'photo'*|'picture'*) $ieVar 'photos';;
+      'movie'*|'video'*) $ieVar 'videos';;
+      'music'*|'audio'*) $ieVar 'audio';;
+      'all'|'everything') $ieVar 'all';;
+      'none'|'nothing') $ieVar 'none';;
+      *) extention="${nextArgs[j]/\./}"
+         functionName="${ieVar}$dExtentions"
+         $functionName+=("${extention,,}");;
     esac
   done
 
 }
 
+include() {
+
+  echo "Including $1 files"
+#  $1='true'
+
+}
+
+exclude() {
+
+  echo "Excluding $1 files"
+#  $1='false'
+
+}
 
 threadOption() {
 
-  [[ -z "${args[i]}" ]] && error 'noParam' "-t or --threads"
+  [[ -z "$1" ]] && error 'noParam' "-t or --threads"
   availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
-  case "${args[i]}" in
+  case "$1" in
     'all'|'max'|'everything')
       threads="$availableThreads";;
      [1-9]|[0-9][0-9]|[0-9][0-9][0-9])
-      (( "${args[i]}" > "$availableThreads" )) && \
-        warn 'maxThreads' "$availableThreads" "${args[i]}" || \
+      (( "$1" > "$availableThreads" )) && \
+        warn 'maxThreads' "$availableThreads" "$1" || \
       threads="$((${args[i]}))";;
-    *) error 'badParam' '-t or --threads' "${args[i]}";;
+    *) error 'badParam' '-t or --threads' "$1";;
   esac
 
 }
 
-defaults
-argsParsing "$@"
-debugInfo
+################
+# MAIN PROGRAM #
+################
+
+processArgs "$@"
