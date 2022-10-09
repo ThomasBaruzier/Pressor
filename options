@@ -1,0 +1,5 @@
+thread -t --threads
+  availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
+  all max everything : threads="$availableThreads"
+  [1-9] [0-9][0-9] [0-9][0-9][0-9] : (( "$1" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$1" || threads="$(($1))"
+  * : error 'badParam' '-t or --threads' "$1"
