@@ -125,7 +125,6 @@ debugInfo() {
   echo -en "> Verbose : "; colorise "$verbose"
   echo -en "> Logging : "; colorise "$logging"
   echo -en "> Loglevel : "; colorise "$loglevel"
-  echo
 
 }
 
@@ -149,6 +148,7 @@ error() {
     'badParam') echo "Wrong parameter provided for argument $2 : $3";;
     'noParam') echo "No parameter provided for argument $2";;
     'badPath') echo "Non-existing path provided : $2";;
+    'badCode') echo "Code is wrong : $2"
   esac
   echo -en '\e[0m'
   printHelp
@@ -204,6 +204,7 @@ processArgs() {
   [ "$logging" != 'false' ] && debugInfo | \
   sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" > "$logging"
   [ "$help" = 'true' ] && printHelp
+  echo
 
 }
 
@@ -217,13 +218,59 @@ getNextArgs() {
 
 }
 
+optionBuilder() {
+
+  readarray -t options < options
+  for ((j; j < "${#options[@]}"; j++)); do
+    [[ "${options[j]}" [a-zA-Z]*) echo "option : ${options[j]}";;
+
+    case "${options[j]}" in
+      \ \ *) echo "settings : ${options[j]}";;
+      '') :;;
+      *) error 'badCode' "${options[j]:1}";;
+    esac
+  done
+
+}
+
+optionBuilder
+exit
+
+#option() {
+#
+#  unset optionCases optionDo
+#  optionName="$1"
+#  optionArgShortName="$2"
+#  optionArgLongName="$3"
+#  optionArgs=(${@:4})
+#  for ((optionIndex=0; optionIndex < "${#optionArgs[@]}"; optionIndex++)); do
+#    echo "dealing with ${optionArgs[optionIndex]}"
+#    case "${optionArgs[optionIndex]}" in
+#      *')')
+#        echo "if : ${optionArgs[optionIndex]}"
+#        optionCases+=("${optionArgs[optionIndex]}")
+#        while [[ ! "${optionArgs[optionIndex]}" =~ ')' ]]; do
+#          echo "then : ${optionArgs[optionIndex]}"
+#          optionCases+=("${optionArgs[optionIndex]}")
+#          ((optionIndex++))
+#        done
+#        optionCases+=(";;");;
+#      *) optionDo+=("${optionArgs[optionIndex]}")
+#    esac
+#  done
+#  [ "$optionDo" != '' ] && optionDo+=(";")
+##  source <(echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionArgShortName or $optionArgLongName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${optionsCase[@]}"' esac; done; }')
+#  echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionArgShortName or $optionArgLongName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${optionsCase[@]}"' esac; done; }'
+#
+#}
+
 includeOption() {
 
   [ "$nextArgs" = '' ] && error 'noParam' '-e or --exclude'
   for ((j=0; j < "${#nextArgs[@]}"; j++)); do
     case "${nextArgs[j]}" in
       'image'*|'photo'*|'picture'*|'pic'*) photos='true';;
-      'movie'*|'video'*) videos='true';;
+      'movie'*|'video'*|'vid'*) videos='true';;
       'music'*|'audio'*) audios='true';;
       'all'|'everything') photos='true' && videos='true' && audios='true';;
       'none'|'nothing') photos='false' && videos='false' && audios='false';;
@@ -240,7 +287,7 @@ excludeOption() {
   for ((j=0; j < "${#nextArgs[@]}"; j++)); do
     case "${nextArgs[j]}" in
       'image'*|'photo'*|'picture'*|'pic'*) photos='false';;
-      'movie'*|'video'*) videos='false';;
+      'movie'*|'video'*|'vid'*) videos='false';;
       'music'*|'audio'*) audios='false';;
       'all'|'everything') photos='false' && videos='false' && audios='false';;
       'none'|'nothing') photos='true' && videos='true' && audios='true';;
@@ -251,21 +298,21 @@ excludeOption() {
 
 }
 
-threadOption() {
-
-  [ "$1" = '' ] && error 'noParam' '-t or --threads'
-  availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
-  case "$1" in
-    'all'|'max'|'everything')
-      threads="$availableThreads";;
-     [1-9]|[0-9][0-9]|[0-9][0-9][0-9])
-      (( "$1" > "$availableThreads" )) && \
-        warn 'maxThreads' "$availableThreads" "$1" || \
-      threads="$((${args[i]}))";;
-    *) error 'badParam' '-t or --threads' "$1";;
-  esac
-
-}
+#threadOption() {
+#
+#  [ "$1" = '' ] && error 'noParam' '-t or --threads'
+#  availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
+#  case "$1" in
+#    'all'|'max'|'everything')
+#      threads="$availableThreads";;
+#     [1-9]|[0-9][0-9]|[0-9][0-9][0-9])
+#      (( "$1" > "$availableThreads" )) && \
+#        warn 'maxThreads' "$availableThreads" "$1" || \
+#      threads="$((${args[i]}))";;
+#    *) error 'badParam' '-t or --threads' "$1";;
+#  esac
+#
+#}
 
 logOption() {
 
