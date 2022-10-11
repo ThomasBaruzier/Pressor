@@ -180,33 +180,33 @@ info() {
 # ARGS FUNCTIONS #
 #=--------------=#
 
-#processArgs() {
-#
-#  getConfig
-#  args=($*); [ "$args" = '' ] && error 'noArg'
-#  [[ -n "$threads" ]] && threadsOption "$threads"
-#  for ((i=0; i < "${#args[@]}"; i++)); do
-#    previousArg="${args[i]}"
-#    case "${args[i]}" in
-#      '-i'|'--include') getNextArgs; includeOption "${nextArgs[@]}";;
-#      '-e'|'--exclude') getNextArgs; excludeOption;;
-#      '-l'|'--log'|'--logging') getNextArgs; logOption;;
-#      '-r'|'--recursive') recursive='true';;
-#      '-o'|'--overwrite') overwrite='true';;
-#      '-v'|'--verbose') verbose='true';;
-#      '-h'|'--help') help='true';;
-#      '-t'|'--threads') ((i++)); threadsOption "${args[i]}";;
-#      '-L'|'--loglevel') ((i++)); loglevelOption "${args[i]}";;
-#      *) error 'badArg' "${args[i]}";;
-#    esac
-#  done
-#  [ "$verbose" = 'true' ] && debugInfo
-#  [ "$logging" != 'false' ] && debugInfo | \
-#  sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" > "$logging"
-#  [ "$help" = 'true' ] && printHelp
-#  echo
-#
-#}
+processArgs() {
+
+  getConfig
+  args=($*); [ "$args" = '' ] && error 'noArg'
+  [[ -n "$threads" ]] && threadsOption "$threads"
+  for ((i=0; i < "${#args[@]}"; i++)); do
+    previousArg="${args[i]}"
+    case "${args[i]}" in
+      '-i'|'--include') getNextArgs; includeOption "${nextArgs[@]}";;
+      '-e'|'--exclude') getNextArgs; excludeOption;;
+      '-l'|'--log'|'--logging') getNextArgs; logOption;;
+      '-r'|'--recursive') recursive='true';;
+      '-o'|'--overwrite') overwrite='true';;
+      '-v'|'--verbose') verbose='true';;
+      '-h'|'--help') help='true';;
+      '-t'|'--threads') ((i++)); threadsOption "${args[i]}";;
+      '-L'|'--loglevel') ((i++)); loglevelOption "${args[i]}";;
+      *) error 'badArg' "${args[i]}";;
+    esac
+  done
+  [ "$verbose" = 'true' ] && debugInfo
+  [ "$logging" != 'false' ] && debugInfo | \
+  sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" > "$logging"
+  [ "$help" = 'true' ] && printHelp
+  echo
+
+}
 
 getNextArgs() {
 
@@ -229,97 +229,97 @@ getNextArgs() {
 #
 #}
 
-optionBuilder() {
-
-  readarray -t options < options
-  for ((j; j < "${#options[@]}"; j++)); do
-    line=(${options[j]})
-    case "${#line[@]}" in
-      1) getArgs; getActions; convertCode;;
-      0) :;;
-      *) error 'badCode' "${options[j]}";;
-    esac
-  done
-
-}
-
-getArgs() {
-
-  optionName="${options[j]% *}"
-  optionNames+=("$optionName")
-  optionID="${options[j]:0:1}"
-  [[ "${optionIDs[@]}" =~ "$optionID" ]] \
-  && optionID="${optionID^}"
-  [[ ! "${optionIDs[@]}" =~ "$optionID" ]] \
-  && optionIDs+=("$optionID") || optionID=""
-
-}
-
-getActions() {
-
-  while (( "${#options[j+1]}" > 0 )); do
-    ((j++)); line=(${options[j]})
-    for ((k=0; k < "${#line[@]}"; k++)); do
-      if [[ "${line[k]}" = ':' ]]; then
-        line='true'
-      fi
-    done
-    if [ "$line" = 'true' ]; then
-      unset line
-      optionCases+=("${options[j]}")
-    else
-      optionDo+=("${options[j]}")
-      [ "${optionDo[-1]: -1}" != ';' ] && \
-      optionDo["${#optionDo[@]}"]+=';'
-    fi
-  done
-
-}
-
-convertCode() {
-
-  for ((k=0; k < "${#optionCases[@]}"; k++)); do
-    line=(${optionCases[k]/\*/<star>})
-    l=0
-    while [[ "${line[l]}" != ':' ]]; do
-      convertedCase+="${line[l]}|"
-      ((l++))
-    done
-    convertedCase="${convertedCase::-1}) "
-    convertedCase="${convertedCase/<star>/*}"
-    ((l++))
-    while [[ "${line[l]}" != '' ]]; do
-      convertedCase+="${line[l]} "
-      ((l++))
-    done
-    convertedCase="${convertedCase::-1}"
-    convertedCase+=';;'
-    convertedCases+=("$convertedCase")
-    unset convertedCase
-  done
-
-  source <(echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${convertedCases[@]}"' esac; done; }')
-  echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${convertedCases[@]}"' esac; done; }'
-  unset optionDo
-
-}
-
-#includeOption() {
+#optionBuilder() {
 #
-#  [ "$nextArgs" = '' ] && error 'noParam' '-e or --exclude'
-#  for ((j=0; j < "${#nextArgs[@]}"; j++)); do
-#    case "${nextArgs[j]}" in
-#      'image'*|'photo'*|'picture'*|'pic'*) photos='true';;
-#      'movie'*|'video'*|'vid'*) videos='true';;
-#      'music'*|'audio'*) audios='true';;
-#      'all'|'everything') photos='true' && videos='true' && audios='true';;
-#      'none'|'nothing') photos='false' && videos='false' && audios='false';;
-#      *) extention="${nextArgs[j]/\./}" && extention="${extention,,}"
-#         includedExtentions+=" $extention"
+#  readarray -t options < options
+#  for ((j; j < "${#options[@]}"; j++)); do
+#    line=(${options[j]})
+#    case "${#line[@]}" in
+#      1) getArgs; getActions; convertCode;;
+#      0) :;;
+#      *) error 'badCode' "${options[j]}";;
 #    esac
 #  done
 #
 #}
+#
+#getArgs() {
+#
+#  optionName="${options[j]% *}"
+#  optionNames+=("$optionName")
+#  optionID="${options[j]:0:1}"
+#  [[ "${optionIDs[@]}" =~ "$optionID" ]] \
+#  && optionID="${optionID^}"
+#  [[ ! "${optionIDs[@]}" =~ "$optionID" ]] \
+#  && optionIDs+=("$optionID") || optionID=""
+#
+#}
+#
+#getActions() {
+#
+#  while (( "${#options[j+1]}" > 0 )); do
+#    ((j++)); line=(${options[j]})
+#    for ((k=0; k < "${#line[@]}"; k++)); do
+#      if [[ "${line[k]}" = ':' ]]; then
+#        line='true'
+#      fi
+#    done
+#    if [ "$line" = 'true' ]; then
+#      unset line
+#      optionCases+=("${options[j]}")
+#    else
+#      optionDo+=("${options[j]}")
+#      [ "${optionDo[-1]: -1}" != ';' ] && \
+#      optionDo["${#optionDo[@]}"]+=';'
+#    fi
+#  done
+#
+#}
+#
+#convertCode() {
+#
+#  for ((k=0; k < "${#optionCases[@]}"; k++)); do
+#    line=(${optionCases[k]/\*/<star>})
+#    l=0
+#    while [[ "${line[l]}" != ':' ]]; do
+#      convertedCase+="${line[l]}|"
+#      ((l++))
+#    done
+#    convertedCase="${convertedCase::-1}) "
+#    convertedCase="${convertedCase/<star>/*}"
+#    ((l++))
+#    while [[ "${line[l]}" != '' ]]; do
+#      convertedCase+="${line[l]} "
+#      ((l++))
+#    done
+#    convertedCase="${convertedCase::-1}"
+#    convertedCase+=';;'
+#    convertedCases+=("$convertedCase")
+#    unset convertedCase
+#  done
+#
+#  source <(echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${convertedCases[@]}"' esac; done; }')
+#  echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${convertedCases[@]}"' esac; done; }'
+#  unset optionDo
+#
+#}
+
+includeOption() {
+
+  [ "$nextArgs" = '' ] && error 'noParam' '-e or --exclude'
+  for ((j=0; j < "${#nextArgs[@]}"; j++)); do
+    case "${nextArgs[j]}" in
+      'image'*|'photo'*|'picture'*|'pic'*) photos='true';;
+      'movie'*|'video'*|'vid'*) videos='true';;
+      'music'*|'audio'*) audios='true';;
+      'all'|'everything') photos='true' && videos='true' && audios='true';;
+      'none'|'nothing') photos='false' && videos='false' && audios='false';;
+      *) extention="${nextArgs[j]/\./}" && extention="${extention,,}"
+         includedExtentions+=" $extention"
+    esac
+  done
+
+}
 
 excludeOption() {
 

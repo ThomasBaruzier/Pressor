@@ -25,23 +25,48 @@ getConfig() {
 
 }
 
+processArgs() {
+
+  args=($@); [ "$args" = '' ] && error 'noArg'
+  for ((i=0; i < "${#args[@]}"; i++)); do
+    for ((j=0; j < "${#optionNames[@]}"; j++)); do
+      [[ "${optionIDs[j]}" = "${args[i]}" || "${optionNames[j]}" = "${args[i]}" ]] \
+      && launchOption "${optionNames[j]:2}Option"
+    done
+  done
+#  [ "$verbose" = 'true' ] && echo debug
+
+}
+
+launchOption() {
+
+  unset nextArgs
+  while [[ "${args[i+1]:0:1}" != '-' && -n "${args[i+1]}" ]]; do
+    ((i++))
+    nextArgs+=("${args[i]}")
+  done
+  $1 "${nextArgs[@]}"
+
+}
+
 optionBuilder() {
 
   readarray -t options < "$0"
   i=0; while [[ "${options[i-2]}" != '# OPTIONS' ]]; do ((i++)); done
   for ((; i <= "${#options[@]}"; i++)); do
     if [[ "${options[i]}" =~ ^[a-zA-Z]+$ ]]; then
-      optionName="${options[i],,}"
-      optionID="${optionName:0:1}"
+      optionName="--${options[i],,}"
+      optionNames+=("$optionName")
+      optionID="${optionName:1:2}"
       [[ "${optionIDs[@]}" =~ "$optionID" ]] && optionID="${optionID^}"
-      [[ ! "${optionIDs[@]}" =~ "$optionID" ]] && optionIDs+=("$optionID") || optionID=""
+      [[ ! "${optionIDs[@]}" =~ "$optionID" ]] && optionIDs+=("$optionID") || echo "No more ids available"
     elif [[ "${options[i]}" =~ ';;'$ ]]; then
       optionCases+="${options[i]} "
     elif [[ -n "${options[i]}" ]]; then
       optionTasks+="${options[i]};"
     elif [[ -n "$optionName" ]]; then
-      source <(echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
-      echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }'
+      source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionID or $optionName'"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
+#      echo "${optionName:2}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionID or $optionName'"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }'
       unset optionName optionID optionCases optionTasks
     fi
   done
@@ -147,7 +172,7 @@ warn() {
   case "$1" in
     'maxThreads') echo "Using $2 threads instead of $3 (it's the maximum available)";;
   esac
-  echo -en '\e[0m'
+  echo -e '\e[0m'
 
 }
 
@@ -158,12 +183,14 @@ info() {
   case "$1" in
     'noFile') echo "No filename provided for $2 : Using $3";;
   esac
+  echo
 
 }
 
 # MAIN PROGRAM
 
 optionBuilder
+getConfig
 processArgs "$@"
 exit
 
@@ -190,3 +217,8 @@ music*|audio*) audios='false';;
 all|everything) photos='false'; videos='false'; audios='false';;
 none|nothing) photos='true'; videos='true'; audios='true';;
 *) extention="${1/\./}"; extention="${extention,,}"; includedExtentions+="$extention";;
+
+VERBOSE
+''|y|yes|enable|true) verbose='true';;
+n|no|disable|false) verbose='false';;
+*) error 'badParam' '-v or --verbose' "$1";;
