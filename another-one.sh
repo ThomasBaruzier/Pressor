@@ -148,7 +148,7 @@ error() {
     'badParam') echo "Wrong parameter provided for argument $2 : $3";;
     'noParam') echo "No parameter provided for argument $2";;
     'badPath') echo "Non-existing path provided : $2";;
-    'badCode') echo "Code is wrong : $2"
+    'badCode') echo "Worong code : $2";;
   esac
   echo -en '\e[0m'
   printHelp
@@ -222,13 +222,41 @@ optionBuilder() {
 
   readarray -t options < options
   for ((j; j < "${#options[@]}"; j++)); do
-    [[ "${options[j]}" [a-zA-Z]*) echo "option : ${options[j]}";;
-
-    case "${options[j]}" in
-      \ \ *) echo "settings : ${options[j]}";;
-      '') :;;
-      *) error 'badCode' "${options[j]:1}";;
+    line=(${options[j]})
+    case "${#line[@]}" in
+      1) getArgs; getActions;
+      *) error 'badCode' "${options[j]}";;
     esac
+  done
+
+  for ((j=0; j < "${#optionNames[@]}"; j++)); do
+    echo "${optionNames[@]} - ${optionIDs[@]}"
+    echo "${optionCases[@]}"
+    echo "${optionDo[@]}"
+  done
+
+}
+
+getArgs() {
+
+  optionNames+=("${options[j]% *}")
+  optionID="${options[j]:0:1}"
+  [[ "${optionIDs[@]}" =~ "$optionID" ]] \
+  && optionID="${optionID^}"
+  [[ ! "${optionIDs[@]}" =~ "$optionID" ]] \
+  && optionIDs+=("$optionID") || optionID=""
+
+}
+
+getActions() {
+
+  while (( "${#line[@]}" > 0 )); do
+    ((j++)); line=(${options[j]})
+    for ((k=0; k < "${#lines[@]}"; k++)); do
+      [ "${lines[k]}" = ':' ] \
+      && optionCases+=("${options[j]}") \
+      || optionDo+=("${options[j]}")
+    done
   done
 
 }
