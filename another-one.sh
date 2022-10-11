@@ -148,7 +148,7 @@ error() {
     'badParam') echo "Wrong parameter provided for argument $2 : $3";;
     'noParam') echo "No parameter provided for argument $2";;
     'badPath') echo "Non-existing path provided : $2";;
-    'badCode') echo "Worong code : $2";;
+    'badCode') echo "Wrong code : $2";;
   esac
   echo -en '\e[0m'
   printHelp
@@ -180,33 +180,33 @@ info() {
 # ARGS FUNCTIONS #
 #=--------------=#
 
-processArgs() {
-
-  getConfig
-  args=($*); [ "$args" = '' ] && error 'noArg'
-  [[ -n "$threads" ]] && threadOption "$threads"
-  for ((i=0; i < "${#args[@]}"; i++)); do
-    previousArg="${args[i]}"
-    case "${args[i]}" in
-      '-i'|'--include') getNextArgs; includeOption;;
-      '-e'|'--exclude') getNextArgs; excludeOption;;
-      '-l'|'--log'|'--logging') getNextArgs; logOption;;
-      '-r'|'--recursive') recursive='true';;
-      '-o'|'--overwrite') overwrite='true';;
-      '-v'|'--verbose') verbose='true';;
-      '-h'|'--help') help='true';;
-      '-t'|'--threads') ((i++)); threadOption "${args[i]}";;
-      '-L'|'--loglevel') ((i++)); loglevelOption "${args[i]}";;
-      *) error 'badArg' "${args[i]}";;
-    esac
-  done
-  [ "$verbose" = 'true' ] && debugInfo
-  [ "$logging" != 'false' ] && debugInfo | \
-  sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" > "$logging"
-  [ "$help" = 'true' ] && printHelp
-  echo
-
-}
+#processArgs() {
+#
+#  getConfig
+#  args=($*); [ "$args" = '' ] && error 'noArg'
+#  [[ -n "$threads" ]] && threadsOption "$threads"
+#  for ((i=0; i < "${#args[@]}"; i++)); do
+#    previousArg="${args[i]}"
+#    case "${args[i]}" in
+#      '-i'|'--include') getNextArgs; includeOption "${nextArgs[@]}";;
+#      '-e'|'--exclude') getNextArgs; excludeOption;;
+#      '-l'|'--log'|'--logging') getNextArgs; logOption;;
+#      '-r'|'--recursive') recursive='true';;
+#      '-o'|'--overwrite') overwrite='true';;
+#      '-v'|'--verbose') verbose='true';;
+#      '-h'|'--help') help='true';;
+#      '-t'|'--threads') ((i++)); threadsOption "${args[i]}";;
+#      '-L'|'--loglevel') ((i++)); loglevelOption "${args[i]}";;
+#      *) error 'badArg' "${args[i]}";;
+#    esac
+#  done
+#  [ "$verbose" = 'true' ] && debugInfo
+#  [ "$logging" != 'false' ] && debugInfo | \
+#  sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" > "$logging"
+#  [ "$help" = 'true' ] && printHelp
+#  echo
+#
+#}
 
 getNextArgs() {
 
@@ -218,28 +218,35 @@ getNextArgs() {
 
 }
 
+#getNextArgsFor() {
+#
+#  unset nextArgs
+#  while [[ "${args[i+1]:0:1}" != '-' && -n "${args[i+1]}" ]]; do
+#    ((i++))
+#    nextArgs+=("${args[i]}")
+#  done
+#  "$1" "${nextArgs[@]}"
+#
+#}
+
 optionBuilder() {
 
   readarray -t options < options
   for ((j; j < "${#options[@]}"; j++)); do
     line=(${options[j]})
     case "${#line[@]}" in
-      1) getArgs; getActions;
+      1) getArgs; getActions; convertCode;;
+      0) :;;
       *) error 'badCode' "${options[j]}";;
     esac
-  done
-
-  for ((j=0; j < "${#optionNames[@]}"; j++)); do
-    echo "${optionNames[@]} - ${optionIDs[@]}"
-    echo "${optionCases[@]}"
-    echo "${optionDo[@]}"
   done
 
 }
 
 getArgs() {
 
-  optionNames+=("${options[j]% *}")
+  optionName="${options[j]% *}"
+  optionNames+=("$optionName")
   optionID="${options[j]:0:1}"
   [[ "${optionIDs[@]}" =~ "$optionID" ]] \
   && optionID="${optionID^}"
@@ -250,64 +257,69 @@ getArgs() {
 
 getActions() {
 
-  while (( "${#line[@]}" > 0 )); do
+  while (( "${#options[j+1]}" > 0 )); do
     ((j++)); line=(${options[j]})
-    for ((k=0; k < "${#lines[@]}"; k++)); do
-      [ "${lines[k]}" = ':' ] \
-      && optionCases+=("${options[j]}") \
-      || optionDo+=("${options[j]}")
+    for ((k=0; k < "${#line[@]}"; k++)); do
+      if [[ "${line[k]}" = ':' ]]; then
+        line='true'
+      fi
     done
+    if [ "$line" = 'true' ]; then
+      unset line
+      optionCases+=("${options[j]}")
+    else
+      optionDo+=("${options[j]}")
+      [ "${optionDo[-1]: -1}" != ';' ] && \
+      optionDo["${#optionDo[@]}"]+=';'
+    fi
   done
 
 }
 
-optionBuilder
-exit
+convertCode() {
 
-#option() {
+  for ((k=0; k < "${#optionCases[@]}"; k++)); do
+    line=(${optionCases[k]/\*/<star>})
+    l=0
+    while [[ "${line[l]}" != ':' ]]; do
+      convertedCase+="${line[l]}|"
+      ((l++))
+    done
+    convertedCase="${convertedCase::-1}) "
+    convertedCase="${convertedCase/<star>/*}"
+    ((l++))
+    while [[ "${line[l]}" != '' ]]; do
+      convertedCase+="${line[l]} "
+      ((l++))
+    done
+    convertedCase="${convertedCase::-1}"
+    convertedCase+=';;'
+    convertedCases+=("$convertedCase")
+    unset convertedCase
+  done
+
+  source <(echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${convertedCases[@]}"' esac; done; }')
+  echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'-$optionID or --$optionName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${convertedCases[@]}"' esac; done; }'
+  unset optionDo
+
+}
+
+#includeOption() {
 #
-#  unset optionCases optionDo
-#  optionName="$1"
-#  optionArgShortName="$2"
-#  optionArgLongName="$3"
-#  optionArgs=(${@:4})
-#  for ((optionIndex=0; optionIndex < "${#optionArgs[@]}"; optionIndex++)); do
-#    echo "dealing with ${optionArgs[optionIndex]}"
-#    case "${optionArgs[optionIndex]}" in
-#      *')')
-#        echo "if : ${optionArgs[optionIndex]}"
-#        optionCases+=("${optionArgs[optionIndex]}")
-#        while [[ ! "${optionArgs[optionIndex]}" =~ ')' ]]; do
-#          echo "then : ${optionArgs[optionIndex]}"
-#          optionCases+=("${optionArgs[optionIndex]}")
-#          ((optionIndex++))
-#        done
-#        optionCases+=(";;");;
-#      *) optionDo+=("${optionArgs[optionIndex]}")
+#  [ "$nextArgs" = '' ] && error 'noParam' '-e or --exclude'
+#  for ((j=0; j < "${#nextArgs[@]}"; j++)); do
+#    case "${nextArgs[j]}" in
+#      'image'*|'photo'*|'picture'*|'pic'*) photos='true';;
+#      'movie'*|'video'*|'vid'*) videos='true';;
+#      'music'*|'audio'*) audios='true';;
+#      'all'|'everything') photos='true' && videos='true' && audios='true';;
+#      'none'|'nothing') photos='false' && videos='false' && audios='false';;
+#      *) extention="${nextArgs[j]/\./}" && extention="${extention,,}"
+#         includedExtentions+=" $extention"
 #    esac
 #  done
-#  [ "$optionDo" != '' ] && optionDo+=(";")
-##  source <(echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionArgShortName or $optionArgLongName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${optionsCase[@]}"' esac; done; }')
-#  echo "${optionName}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionArgShortName or $optionArgLongName'"'; '"${optionDo[@]}"' for ((j=0; j < "${#optionArgs[@]}"; j++)); do case "${optionArgs[j]}" in '"${optionsCase[@]}"' esac; done; }'
 #
 #}
-
-includeOption() {
-
-  [ "$nextArgs" = '' ] && error 'noParam' '-e or --exclude'
-  for ((j=0; j < "${#nextArgs[@]}"; j++)); do
-    case "${nextArgs[j]}" in
-      'image'*|'photo'*|'picture'*|'pic'*) photos='true';;
-      'movie'*|'video'*|'vid'*) videos='true';;
-      'music'*|'audio'*) audios='true';;
-      'all'|'everything') photos='true' && videos='true' && audios='true';;
-      'none'|'nothing') photos='false' && videos='false' && audios='false';;
-      *) extention="${nextArgs[j]/\./}" && extention="${extention,,}"
-         includedExtentions+=" $extention"
-    esac
-  done
-
-}
 
 excludeOption() {
 
@@ -325,22 +337,6 @@ excludeOption() {
   done
 
 }
-
-#threadOption() {
-#
-#  [ "$1" = '' ] && error 'noParam' '-t or --threads'
-#  availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
-#  case "$1" in
-#    'all'|'max'|'everything')
-#      threads="$availableThreads";;
-#     [1-9]|[0-9][0-9]|[0-9][0-9][0-9])
-#      (( "$1" > "$availableThreads" )) && \
-#        warn 'maxThreads' "$availableThreads" "$1" || \
-#      threads="$((${args[i]}))";;
-#    *) error 'badParam' '-t or --threads' "$1";;
-#  esac
-#
-#}
 
 logOption() {
 
@@ -366,4 +362,5 @@ loglevelOption() {
 # MAIN PROGRAM #
 #=------------=#
 
+optionBuilder
 processArgs "$@"
