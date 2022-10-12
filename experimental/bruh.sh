@@ -5,8 +5,8 @@
 
 getConfig() {
 
-  input=''
-  output=''
+  inputs=('.')
+  output='.'
 
   videos='true'
   photos='true'
@@ -20,14 +20,28 @@ getConfig() {
   threads='all'
 
   verbose='false'
-  logging='false'
+  log='false'
   loglevel='info'
 
 }
 
 processArgs() {
 
-  args=($@); [ "$args" = '' ] && error 'noArg'
+  i=0; args=("$@"); [ "$args" = '' ] && warn 'noArg' "input(s) : ${inputs[@]} / output : $output"
+#  while [[ "${args[i]:0:1}" != '-' && -n "${args[i]}" ]]; do
+#    inputs+=("${args[i]}")
+#    match='true'
+#    [[ ! -d "${args[i]}" && ! -f "${args[i]}" ]] && error 'badPath' "${args[i]}"
+#    ((i++))
+#  done
+#  if [[ "$match" = 'true' ]]; then
+#    unset match
+#    inputs=("${inputs[@]:1}")
+#    [[ "${args[i]:0:1}" != '-' && ! -d "${args[i]}" ]] && warn 'createPath' "${args[i]}"
+#    [[ "${args[i]:0:1}" = '-' ]] && ((i--))
+#  else
+#    ((i--))
+#  fi
   for ((i=0; i < "${#args[@]}"; i++)); do
     for ((j=0; j < "${#optionNames[@]}"; j++)); do
       if [[ "${optionIDs[j]}" = "${args[i]}" || "${optionNames[j]}" = "${args[i]}" ]]; then
@@ -46,6 +60,7 @@ processArgs() {
     unset match
   done
   [ "$verbose" = 'true' ] && printVerbose
+  [[ "$log" != 'false' || "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
   [ "$help" = 'true' ] && printHelp
 
 }
@@ -90,8 +105,8 @@ printHelp() {
   echo
   echo "Input options :"
   echo
-  echo "  -i, --include {all|none|videos|photos|audios|<extention>}"
-  echo "  -e, --exclude {all|none|videos|photos|audios|<extention>}"
+  echo "  -i, --include {all|none|videos|photos|audios|<extention(s)>}"
+  echo "  -e, --exclude {all|none|videos|photos|audios|<extention(s)>}"
   echo "      > Include or exclude file types or extentions"
   echo "      > Default : all (in both options)"
   echo
@@ -158,13 +173,12 @@ printHelp() {
 
 }
 
-
 printVerbose() {
 
   echo
   echo -e "\e[34mInput options :\e[0m"
   echo
-  echo -en "> Input : "; colorise "$input"
+  echo -en "> Input(s) : "; colorise "${inputs[@]}"
   echo -en "> Output : "; colorise "$output"
   echo
   echo -en "> Photos : "; colorise "$photos"
@@ -181,7 +195,7 @@ printVerbose() {
   echo
   echo -en "> Threads : "; colorise "$threads"
   echo -en "> Verbose : "; colorise "$verbose"
-  echo -en "> Logging : "; colorise "$logging"
+  echo -en "> Logging : "; colorise "$log"
   echo -en "> Loglevel : "; colorise "$loglevel"
 
 }
@@ -192,7 +206,7 @@ colorise() {
     'true') echo -e "\e[32mtrue\e[0m";;
     'false') echo -e "\e[31mfalse\e[0m";;
     '') echo -e "\e[36mundefined\e[0m";;
-    *) echo -e "\e[35m$1\e[0m";;
+    *) echo -e "\e[35m$@\e[0m";;
   esac
 
 }
@@ -217,7 +231,9 @@ warn() {
   [ "$loglevel" = 'error' ] && return
   echo -en '\e[33m\nWARNING : '
   case "$1" in
+    'noArg') echo "No arguments provided : Using $2";;
     'noParam') echo "No parameter provided for argument $2 : Using $3";;
+    'createPath') echo "Not a valid path : $2. Creating it.";;
     'maxThreads') echo "Using $2 threads instead of $3 (it's the maximum available)";;
   esac
   echo -en '\e[0m'
@@ -239,7 +255,7 @@ info() {
 optionBuilder
 getConfig
 processArgs "$@"
-echo && exit
+echo; exit
 
 # OPTIONS
 
@@ -260,21 +276,38 @@ none|nothing) photos='true'; videos='true'; audios='true';;
 *) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; excludedExtentions+=" $extention"; includedExtentions="${includedExtentions// $extention}";;
 
 RECURSIVE
-default|y|yes|enable|true) recursive='true';;
-n|no|disable|false) recursive='false';;
+default|y|yes|'enable'|'true') recursive='true';;
+n|no|disable|'false') recursive='false';;
 *) error 'badParam' '--r or -recursive' "$1";;
+
+OVERWRITE
+default|y|yes|'enable'|'true') overwrite='true';;
+n|no|disable|'false') overwrite='false';;
+*) error 'badParam' '--o or -overwrite' "$1";;
 
 THREADS
 availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
 all|max|everything) threads="$availableThreads";;
 [1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "$1" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$1" || threads="$(($1))";;
-default) warn 'noParam' '-t or --threads' "all : $availableThreads" && threads="$(($1))";;
+default) warn 'noParam' '-t or --threads' "$availableThreads threads" && threads="$availableThreads";;
 *) error 'badParam' '-t or --threads' "$1";;
 
 VERBOSE
-default|y|yes|enable|true) verbose='true';;
-n|no|disable|false) verbose='false';;
+default|y|yes|'enable'|'true') verbose='true';;
+n|no|disable|'false') verbose='false';;
 *) error 'badParam' '-v or --verbose' "$1";;
+
+LOG
+default) info 'noFile' '-l or --log' "log.txt" && log='log.txt';;
+*/*) [[ ! -d "${nextArgs%/*}" ]] && error 'badPath' "${nextArgs%/*}"; log="$nextArgs";;
+*) log="$nextArgs";;
+
+LOGLEVEL
+2|i|info*|information*) loglevel='info';;
+1|w|warn*|warning*) loglevel='warning';;
+0|e|err|error*) loglevel='error';;
+default) error 'noParam' '-L or --loglevel';;
+*) error 'badParam' '-L or --loglevel' "$1";;
 
 HELP
 *) printHelp;;
