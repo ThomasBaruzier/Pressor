@@ -30,22 +30,23 @@ processArgs() {
   args=($@); [ "$args" = '' ] && error 'noArg'
   for ((i=0; i < "${#args[@]}"; i++)); do
     for ((j=0; j < "${#optionNames[@]}"; j++)); do
-      [[ "${optionIDs[j]}" = "${args[i]}" || "${optionNames[j]}" = "${args[i]}" ]] \
-      && launchOption "${optionNames[j]:2}Option"
+      if [[ "${optionIDs[j]}" = "${args[i]}" || "${optionNames[j]}" = "${args[i]}" ]]; then
+        match='true'
+        optionName="${optionNames[j]:2}Option"
+        while [[ "${args[i+1]:0:1}" != '-' && -n "${args[i+1]}" ]]; do
+          ((i++))
+          nextArgs+=("${args[i]}")
+        done
+        [ "${nextArgs[*]}" = '' ] && nextArgs='default'
+        $optionName "${nextArgs[@]}"
+        unset nextArgs optionName
+      fi
     done
+    [ "$match" != 'true' ] && error 'badArg' "${args[i]}"
+    unset match
   done
-#  [ "$verbose" = 'true' ] && echo debug
-
-}
-
-launchOption() {
-
-  unset nextArgs
-  while [[ "${args[i+1]:0:1}" != '-' && -n "${args[i+1]}" ]]; do
-    ((i++))
-    nextArgs+=("${args[i]}")
-  done
-  $1 "${nextArgs[@]}"
+  [ "$verbose" = 'true' ] && printVerbose
+  [ "$help" = 'true' ] && printHelp
 
 }
 
@@ -58,16 +59,23 @@ optionBuilder() {
       optionName="--${options[i],,}"
       optionNames+=("$optionName")
       optionID="${optionName:1:2}"
-      [[ "${optionIDs[@]}" =~ "$optionID" ]] && optionID="${optionID^}"
-      [[ ! "${optionIDs[@]}" =~ "$optionID" ]] && optionIDs+=("$optionID") || echo "No more ids available"
+      alphabet=(a A b B c C d D e E f F g G h H i I j J k K l L m M n N o O p P k K r R s S t T u U v V w W x X y Y z Z)
+      for ((index=0; index < "${#alphabet[@]}"; index++)); do
+        [[ "-${alphabet[index]}" = "$optionID" ]] && break
+      done
+      while [[ "${optionIDs[@]}" =~ "$optionID" ]]; do
+        ((index++))
+        [ "$index" = 52 ] && index=0
+        optionID="-${alphabet[index]}"
+      done
+      optionIDs+=("$optionID")
     elif [[ "${options[i]}" =~ ';;'$ ]]; then
       optionCases+="${options[i]} "
     elif [[ -n "${options[i]}" ]]; then
       optionTasks+="${options[i]};"
     elif [[ -n "$optionName" ]]; then
-      source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionID or $optionName'"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
-#      echo "${optionName:2}Option"'() { optionArgs=(${*}); [[ -z "${optionArgs[@]}" ]] && error "noParam" '"'$optionID or $optionName'"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }'
-      unset optionName optionID optionCases optionTasks
+      source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
+      unset optionName optionID optionCases optionTasks index
     fi
   done
 
@@ -78,14 +86,14 @@ optionBuilder() {
 printHelp() {
 
   echo
-  echo "USAGE : $0 <input> <output> [arguments]"
+  echo "USAGE : $0 <input(s)> <output> [arguments]"
   echo
   echo "Input options :"
   echo
   echo "  -i, --include {all|none|videos|photos|audios|<extention>}"
   echo "  -e, --exclude {all|none|videos|photos|audios|<extention>}"
   echo "      > Include or exclude file types or extentions"
-  echo "      > Default : include everything"
+  echo "      > Default : all (in both options)"
   echo
   echo "  -r, --recursive"
   echo "      > Include subfolders"
@@ -150,6 +158,45 @@ printHelp() {
 
 }
 
+
+printVerbose() {
+
+  echo
+  echo -e "\e[34mInput options :\e[0m"
+  echo
+  echo -en "> Input : "; colorise "$input"
+  echo -en "> Output : "; colorise "$output"
+  echo
+  echo -en "> Photos : "; colorise "$photos"
+  echo -en "> Videos : "; colorise "$videos"
+  echo -en "> Audios : "; colorise "$audios"
+  echo
+  echo -en "> Included extentions : "; colorise "${includedExtentions:1}"
+  echo -en "> Excluded extentions : "; colorise "${excludedExtentions:1}"
+  echo
+  echo -en "> Recursive : "; colorise "$recursive"
+  echo -en "> Overwrite : "; colorise "$overwrite"
+  echo
+  echo -e "\e[34mOther options :\e[0m"
+  echo
+  echo -en "> Threads : "; colorise "$threads"
+  echo -en "> Verbose : "; colorise "$verbose"
+  echo -en "> Logging : "; colorise "$logging"
+  echo -en "> Loglevel : "; colorise "$loglevel"
+
+}
+
+colorise() {
+
+  case "$1" in
+    'true') echo -e "\e[32mtrue\e[0m";;
+    'false') echo -e "\e[31mfalse\e[0m";;
+    '') echo -e "\e[36mundefined\e[0m";;
+    *) echo -e "\e[35m$1\e[0m";;
+  esac
+
+}
+
 error() {
 
   echo -en '\e[31m\nERROR : '
@@ -170,9 +217,10 @@ warn() {
   [ "$loglevel" = 'error' ] && return
   echo -en '\e[33m\nWARNING : '
   case "$1" in
+    'noParam') echo "No parameter provided for argument $2 : Using $3";;
     'maxThreads') echo "Using $2 threads instead of $3 (it's the maximum available)";;
   esac
-  echo -e '\e[0m'
+  echo -en '\e[0m'
 
 }
 
@@ -183,7 +231,6 @@ info() {
   case "$1" in
     'noFile') echo "No filename provided for $2 : Using $3";;
   esac
-  echo
 
 }
 
@@ -192,33 +239,42 @@ info() {
 optionBuilder
 getConfig
 processArgs "$@"
-exit
+echo && exit
 
 # OPTIONS
-
-THREADS
-availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
-all|max|everything) threads="$availableThreads";;
-[1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "$1" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$1" || threads="$(($1))";;
-*) error 'badParam' '-t or --threads' "$1";;
 
 INCLUDE
 image*|photo*|picture*|pic*) photos='true';;
 movie*|video*|vid*) videos='true';;
 music*|audio*) audios='true';;
-all|everything) photos='true'; videos='true'; audios='true';;
+default|all|everything) photos='true'; videos='true'; audios='true';;
 none|nothing) photos='false'; videos='false'; audios='false';;
-*) extention="${1/\./}"; extention="${extention,,}"; includedExtentions+="$extention";;
+*) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; includedExtentions+=" $extention"; excludedExtentions="${excludedExtentions// $extention}";;
 
 EXCLUDE
 image*|photo*|picture*|pic*) photos='false';;
 movie*|video*|vid*) videos='false';;
 music*|audio*) audios='false';;
-all|everything) photos='false'; videos='false'; audios='false';;
+default|all|everything) photos='false'; videos='false'; audios='false';;
 none|nothing) photos='true'; videos='true'; audios='true';;
-*) extention="${1/\./}"; extention="${extention,,}"; includedExtentions+="$extention";;
+*) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; excludedExtentions+=" $extention"; includedExtentions="${includedExtentions// $extention}";;
+
+RECURSIVE
+default|y|yes|enable|true) recursive='true';;
+n|no|disable|false) recursive='false';;
+*) error 'badParam' '--r or -recursive' "$1";;
+
+THREADS
+availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
+all|max|everything) threads="$availableThreads";;
+[1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "$1" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$1" || threads="$(($1))";;
+default) warn 'noParam' '-t or --threads' "all : $availableThreads" && threads="$(($1))";;
+*) error 'badParam' '-t or --threads' "$1";;
 
 VERBOSE
-''|y|yes|enable|true) verbose='true';;
+default|y|yes|enable|true) verbose='true';;
 n|no|disable|false) verbose='false';;
 *) error 'badParam' '-v or --verbose' "$1";;
+
+HELP
+*) printHelp;;
