@@ -27,53 +27,71 @@ getConfig() {
 
 processArgs() {
 
-  i=0; args=("$@"); [ "$args" = '' ] && warn 'noArg' "input(s) : ${inputs[@]} / output : $output"
-#  while [[ "${args[i]:0:1}" != '-' && -n "${args[i]}" ]]; do
-#    inputs+=("${args[i]}")
-#    match='true'
-#    [[ ! -d "${args[i]}" && ! -f "${args[i]}" ]] && error 'badPath' "${args[i]}"
-#    ((i++))
-#  done
-#  if [[ "$match" = 'true' ]]; then
-#    unset match
-#    inputs=("${inputs[@]:1}")
-#    [[ "${args[i]:0:1}" != '-' && ! -d "${args[i]}" ]] && warn 'createPath' "${args[i]}"
-#    [[ "${args[i]:0:1}" = '-' ]] && ((i--))
-#  else
-#    ((i--))
-#  fi
-  for ((i=0; i < "${#args[@]}"; i++)); do
+  # get paths
+  i=0; args=("$@")
+  while [[ "${args[i]:0:1}" != '-' && "${args[i]}" != '' ]]; do
+    paths+=("${args[i]}")
+    ((i++))
+  done
+
+  # determine if elements in paths are input or output
+  if [ "${#paths[@]}" = 0 ]; then
+    warn 'noArg' "${inputs[@]} as input(s) and $output as output"
+  elif [ "${#paths[@]}" = 1 ]; then
+    inputs="$args"
+  else
+    inputs="${paths[@]::${#paths[@]}-1}"
+    output="${paths[-1]}"
+  fi
+  [[ "$output" =~ '/' && ! -d "$output" ]] && warn 'createPath' "$output"
+
+  # loop through the next arguments
+  for ((; i < "${#args[@]}"; i++)); do
     for ((j=0; j < "${#optionNames[@]}"; j++)); do
+
+      # if there is a match
       if [[ "${optionIDs[j]}" = "${args[i]}" || "${optionNames[j]}" = "${args[i]}" ]]; then
         match='true'
         optionName="${optionNames[j]:2}Option"
+
+        # get the argument's options
         while [[ "${args[i+1]:0:1}" != '-' && -n "${args[i+1]}" ]]; do
           ((i++))
           nextArgs+=("${args[i]}")
         done
+
+        # fire the argument's function with its arguments
         [ "${nextArgs[*]}" = '' ] && nextArgs='default'
         $optionName "${nextArgs[@]}"
         unset nextArgs optionName
+
       fi
     done
     [ "$match" != 'true' ] && error 'badArg' "${args[i]}"
     unset match
   done
+
+  # activate options
   [ "$verbose" = 'true' ] && printVerbose
-  [[ "$log" != 'false' || "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
+  [[ "$log" != 'false' && "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
   [ "$help" = 'true' ] && printHelp
 
 }
 
 optionBuilder() {
 
+  # read options
   readarray -t options < "$0"
   i=0; while [[ "${options[i-2]}" != '# OPTIONS' ]]; do ((i++)); done
   for ((; i <= "${#options[@]}"; i++)); do
+
+    # give it a name and an ID
     if [[ "${options[i]}" =~ ^[a-zA-Z]+$ ]]; then
       optionName="--${options[i],,}"
       optionNames+=("$optionName")
       optionID="${optionName:1:2}"
+
+      # get a unique ID if it is a duplicate
       alphabet=(a A b B c C d D e E f F g G h H i I j J k K l L m M n N o O p P k K r R s S t T u U v V w W x X y Y z Z)
       for ((index=0; index < "${#alphabet[@]}"; index++)); do
         [[ "-${alphabet[index]}" = "$optionID" ]] && break
@@ -84,10 +102,14 @@ optionBuilder() {
         optionID="-${alphabet[index]}"
       done
       optionIDs+=("$optionID")
+
+    # differenciate options' tasks from cases
     elif [[ "${options[i]}" =~ ';;'$ ]]; then
       optionCases+="${options[i]} "
     elif [[ -n "${options[i]}" ]]; then
       optionTasks+="${options[i]};"
+
+    # build and fire the function
     elif [[ -n "$optionName" ]]; then
       source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
       unset optionName optionID optionCases optionTasks index
@@ -221,8 +243,8 @@ error() {
     'noParam') echo "No parameter provided for argument $2";;
     'badPath') echo "Non-existing path provided : $2";;
   esac
-  echo -en '\e[0m'
-  printHelp
+  echo -e "\e[0mFor help, use $0 -h or --help\n"
+  exit
 
 }
 
