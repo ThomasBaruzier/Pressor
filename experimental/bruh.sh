@@ -5,6 +5,8 @@
 
 getConfig() {
 
+  # input options
+
   inputs=('.')
   output='.'
 
@@ -15,13 +17,28 @@ getConfig() {
   includedExtentions=''
   excludedExtentions=''
 
+  recursive='true'
+  overwrite='false'
+
+  # encoding options
+
   imageCodec='avif'
   videoCodec='av1'
   audioCodec='opus'
 
-  recursive='true'
-  overwrite='false'
   threads='all'
+
+  # output options
+
+  renameImages='false'
+  renameVideos='false'
+  renameAudios='false'
+
+  renamedExtentions=''
+
+  tree='true'
+
+  # other options
 
   verbose='false'
   log='false'
@@ -34,11 +51,14 @@ processArgs() {
   # perform actions that need to be done before agument scanning
   args=("$@")
   for ((i=0; i < "${#args[@]}"; i++)); do
+    args[i]="${args[i]/\~/$HOME}"
     [[ "${args[i]}" = '-h' || "${args[i]}" = '--help' ]] && printHelp
     [[ "${args[i]}" = '-i' || "${args[i]}" = '--include' ]] \
     && videos='false' && images='false' && audios='false' && unset includedExtentions
     [[ "${args[i]}" = '-e' || "${args[i]}" = '--exclude' ]] \
     && videos='true' && images='true' && audios='true' && unset excludedExtentions
+    [[ "${args[i]}" = '-R' || "${args[i]}" = '--rename' ]] \
+    && renameVideos='false' && renameImages='false' && renameAudios='false' && unset renamedExtentions
   done
 
   # get paths
@@ -49,15 +69,12 @@ processArgs() {
   done
 
   # determine if elements in paths are input or output
-  if [ "${#paths[@]}" = 0 ]; then
-    warn 'noArg' "'${inputs[@]}' as input(s) and '$output' as output"
-  elif [ "${#paths[@]}" = 1 ]; then
+  if [ "${#paths[@]}" = 1 ]; then
     inputs="$args"
-  else
-    inputs="${paths[@]::${#paths[@]}-1}"
+  elif [ "${#paths[@]}" != 0 ]; then
+    inputs=("${paths[@]::${#paths[@]}-1}")
     output="${paths[-1]}"
   fi
-  [[ "$output" =~ '/' && ! -d "$output" ]] && warn 'createPath' "$output"
 
   # loop through the next arguments
   for ((; i < "${#args[@]}"; i++)); do
@@ -85,7 +102,16 @@ processArgs() {
     unset match
   done
 
-  # activate options
+  # activate options / warn
+  [ "${#paths[@]}" = 0 ] && warn 'noArg' "'${inputs[@]}' as input(s) and '$output' as output"
+  for i in "${inputs[@]}"; do
+    echo "testing input $i"
+    if [[ "$i" =~ '/' ]]; then
+      [[ -d "$i" || -f "$i" ]] || error 'badPath' "$i"
+    fi
+  done
+  echo "testing output $output"
+  [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" || [[ ! -d "$output" ]] && warn 'createPath' "$output"
   [ "$verbose" = 'true' ] && printVerbose
   [[ "$log" != 'false' && "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
   [ "$help" = 'true' ] && printHelp
@@ -136,30 +162,32 @@ optionBuilder() {
 
 printHelp() {
 
+  i=0
   echo
   echo "USAGE : $0 <input(s)> <output> [arguments]"
   echo
   echo "Input options :"
   echo
-  echo "  -i, --include {all|none|videos|images|audios|<extention(s)>}"
-  echo "  -e, --exclude {all|none|videos|images|audios|<extention(s)>}"
+  echo "  ${optionIDs[i]}, ${optionNames[i]} {all|none|videos|images|audios|<extention(s)>}"; ((i++))
+  echo "  ${optionIDs[i]}, ${optionNames[i]} {all|none|videos|images|audios|<extention(s)>}"; ((i++))
   echo "      > Include or exclude file types or extentions"
   echo "      > Default : all (in both options)"
   echo
-  echo "  -r, --recursive"
+  echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
   echo "      > Include subfolders"
-  echo "      > Default : false"
-  echo "  -o, --overwrite"
+  echo "      > Default : true"
+  echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
   echo "      > Overwrites already compressed files"
   echo "      > Default : false"
   echo
   echo "Encoding options :"
   echo
-  echo "  -c, --codec {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"
-#  echo "      > Choose encoding codecs and quality parameters"
+  echo "  ${optionIDs[i]}, ${optionNames[i]} {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"; ((i++))
+  echo "      > Choose encoding codecs and quality parameters"
 #  echo "      > Quality arguments (for common users) :"
 #  echo "        {quality score/10} {compression efficiency/10} {audio quality/10}"
-#  echo "      > Default : "
+  echo "      > Default : set in config"
 #  echo "      > Quality arguments (for expert users) :"
 #  echo "        • jpg <q:scale> (2-31) <preset> (placebo-veryfast)"
 #  echo "          > Default : "
@@ -184,25 +212,26 @@ printHelp() {
 #  echo "      > Set a maximum lenght size in pixels"
 #  echo "      > Default : "
   echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]} <all|number-of-threads>"; ((i++))
+  echo "      > Number of threads to use"
+  echo "      > Default : all"
+  echo
   echo "Output options :"
   echo
-  echo "  -R, --rename {all|none|videos|image|audios|<extention(s)>}"
+  echo "  ${optionIDs[i]}, ${optionNames[i]} {all|none|videos|images|audios|<extention(s)>}"; ((i++))
   echo "      > Rename the output files to their timestamps"
   echo "      > Default : none"
-  echo "  -t, --tree"
+  echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
   echo "      > Copy the input folder hierarachy to output"
   echo "      > Default : true"
   echo
   echo "Other options :"
   echo
-  echo "  -T, --threads <all|number-of-threads>"
-  echo "      > Number of threads to use"
-  echo "      > Default : all"
-  echo
-  echo "  -v, --verbose : print more information"
-  echo "  -l, --log {file} : --verbose redirected to a file"
-  echo "  -L, --loglevel <0|1|2|info|warning|error>"
-  echo "  -h, --help : print this menu"
+  echo "  ${optionIDs[i]}, ${optionNames[i]} : print more information"; ((i++))
+  echo "  ${optionIDs[i]}, ${optionNames[i]} {file} : --verbose redirected to a file"; ((i++))
+  echo "  ${optionIDs[i]}, ${optionNames[i]} <0|1|2|info|warning|error>"; ((i++))
+  echo "  ${optionIDs[i]}, ${optionNames[i]} : print this menu"
   echo
   exit
 
@@ -232,11 +261,22 @@ printVerbose() {
   echo -en "> Video codec : "; colorise "$videoCodec"
   echo -en "> Audio codec : "; colorise "$audioCodec"
   echo
+  echo -en "> Threads : "; colorise "$threads"
+  echo
+  echo -e "\e[34mOutput options :\e[0m"
+  echo
+  echo -en "> Rename images : "; colorise "$renameImages"
+  echo -en "> Rename video : "; colorise "$renameVideos"
+  echo -en "> Rename audio : "; colorise "$renameAudios"
+  echo
+  echo -en "> Renamed extentions : "; colorise "$renamedExtentions"
+  echo
+  echo -en "> Tree : "; colorise "$tree"
+  echo
   echo -e "\e[34mOther options :\e[0m"
   echo
-  echo -en "> Threads : "; colorise "$threads"
   echo -en "> Verbose : "; colorise "$verbose"
-  echo -en "> Logging : "; colorise "$log"
+  echo -en "> Log : "; colorise "$log"
   echo -en "> Loglevel : "; colorise "$loglevel"
 
 }
@@ -322,8 +362,8 @@ n|no|'false') recursive='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 OVERWRITE
-default|y|yes|'enable'|'true') overwrite='true';;
-n|no|disable|'false') overwrite='false';;
+default|y|yes|'true') overwrite='true';;
+n|no|'false') overwrite='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 CODEC
@@ -333,19 +373,6 @@ mp3|opus) audioCodec="$arg";;
 default) error 'noParam' '-c or --codec';;
 *) error 'badParam' "$id or $name" "$arg";;
 
-RENAME
-default|y|yes|'enable'|'true') verbose='true';;
-n|no|disable|'false') verbose='false';;
-*) error 'badParam' "$id or $name" "$arg";;
-
-TREE
-image*|photo*|picture*|pic*) renameImages='true';;
-movie*|video*|vid*) renameVideos='true';;
-music*|audio*) renameAudios='true';;
-default|all|everything) renameImages='true'; renameVideos='true'; renameAudios='true';;
-none|nothing) renameImages='false'; renameVideos='false'; renameAudios='false';;
-*) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; renamedExtentions+=" $extention"; renammedExtentions="${excludedExtentions// $extention}";;
-
 THREADS
 availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
 all|max|everything) threads="$availableThreads";;
@@ -353,9 +380,22 @@ all|max|everything) threads="$availableThreads";;
 default) warn 'noParam' '-t or --threads' "$availableThreads threads" && threads="$availableThreads";;
 *) error 'badParam' "$id or $name" "$arg";;
 
+RENAME
+image*|photo*|picture*|pic*) renameImages='true';;
+movie*|video*|vid*) renameVideos='true';;
+music*|audio*) renameAudios='true';;
+default|all|everything) renameImages='true'; renameVideos='true'; renameAudios='true';;
+none|nothing) renameImages='false'; renameVideos='false'; renameAudios='false';;
+*) extention="${arg/\./}"; extention="${extention,,}"; renamedExtentions="${renamedExtentions// $extention}"; renamedExtentions+=" $extention";;
+
+TREE
+default|y|yes|'true') tree='true';;
+n|no|'false') tree='false';;
+*) error 'badParam' "$id or $name" "$arg";;
+
 VERBOSE
-default|y|yes|'enable'|'true') verbose='true';;
-n|no|disable|'false') verbose='false';;
+default|y|yes|'true') verbose='true';;
+n|no|'false') verbose='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 LOG
