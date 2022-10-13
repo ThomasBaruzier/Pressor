@@ -15,7 +15,7 @@ getConfig() {
   includedExtentions=''
   excludedExtentions=''
 
-  recursive='false'
+  recursive='true'
   overwrite='false'
   threads='all'
 
@@ -27,8 +27,18 @@ getConfig() {
 
 processArgs() {
 
+  # perform actions that need to be done before agument scanning
+  args=("$@")
+  for ((i=0; i < "${#args[@]}"; i++)); do
+    [[ "${args[i]}" = '-h' || "${args[i]}" = '--help' ]] && printHelp
+    [[ "${args[i]}" = '-i' || "${args[i]}" = '--include' ]] \
+    && videos='false' && photos='false' && audios='false' && unset includedExtentions
+    [[ "${args[i]}" = '-e' || "${args[i]}" = '--exclude' ]] \
+    && videos='true' && photos='true' && audios='true' && unset excludedExtentions
+  done
+
   # get paths
-  i=0; args=("$@")
+  i=0
   while [[ "${args[i]:0:1}" != '-' && "${args[i]}" != '' ]]; do
     paths+=("${args[i]}")
     ((i++))
@@ -139,15 +149,14 @@ printHelp() {
   echo "      > Overwrites already compressed files"
   echo "      > Default : false"
   echo
-#  echo "Encoding options :"
-#  echo
-#  echo "  -C, --codec {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"
+  echo "Encoding options :"
+  echo
+  echo "  -C, --codec {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"
 #  echo "      > Choose encoding codecs and quality parameters"
-#  echo "      > Quality arguments :"
+#  echo "      > Quality arguments (for common users) :"
 #  echo "        {quality score/10} {compression efficiency/10} {audio quality/10}"
 #  echo "      > Default : "
 #  echo "      > Quality arguments (for expert users) :"
-#  echo "      > Example : -C vp9 21 -5 avif 30 mp3"
 #  echo "        • jpg <q:scale> (2-31) <preset> (placebo-veryfast)"
 #  echo "          > Default : "
 #  echo "        • jxl (planned for future versions)"
@@ -179,7 +188,7 @@ printHelp() {
 #  echo "  -T, --copy-tree"
 #  echo "      > Replicate the input folder hierarachy for output"
 #  echo "      > Default : true"
-#  echo
+  echo
   echo "Other options :"
   echo
   echo "  -t, --threads <all|number-of-threads>"
@@ -243,7 +252,7 @@ error() {
     'noParam') echo "No parameter provided for argument $2";;
     'badPath') echo "Non-existing path provided : $2";;
   esac
-  echo -e "\e[0mFor help, use $0 -h or --help\n"
+  echo -e "\e[0mFor help, use $0 --help\n"
   exit
 
 }
@@ -298,14 +307,20 @@ none|nothing) photos='true'; videos='true'; audios='true';;
 *) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; excludedExtentions+=" $extention"; includedExtentions="${includedExtentions// $extention}";;
 
 RECURSIVE
-default|y|yes|'enable'|'true') recursive='true';;
-n|no|disable|'false') recursive='false';;
-*) error 'badParam' '--r or -recursive' "$1";;
+default|y|yes|'true') recursive='true';;
+n|no|'false') recursive='false';;
+*) error 'badParam' '-r or --recursive' "$1";;
 
 OVERWRITE
 default|y|yes|'enable'|'true') overwrite='true';;
 n|no|disable|'false') overwrite='false';;
-*) error 'badParam' '--o or -overwrite' "$1";;
+*) error 'badParam' '-o or --overwrite' "$1";;
+
+CODEC
+jpg|jxl|avif) codec="${nextArgs[index]}";;
+h264|h265|vp9|av1|vvc) codec="${nextArgs[index]}";;
+mp3|opus) codec="${nextArgs[index]}";;
+*) error 'badParam' '-c or --codec' "$1";;
 
 THREADS
 availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
