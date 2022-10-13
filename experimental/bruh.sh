@@ -105,12 +105,10 @@ processArgs() {
   # activate options / warn
   [ "${#paths[@]}" = 0 ] && warn 'noArg' "'${inputs[@]}' as input(s) and '$output' as output"
   for i in "${inputs[@]}"; do
-    echo "testing input $i"
     if [[ "$i" =~ '/' ]]; then
       [[ -d "$i" || -f "$i" ]] || error 'badPath' "$i"
     fi
   done
-  echo "testing output $output"
   [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" || [[ ! -d "$output" ]] && warn 'createPath' "$output"
   [ "$verbose" = 'true' ] && printVerbose
   [[ "$log" != 'false' && "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
@@ -266,8 +264,8 @@ printVerbose() {
   echo -e "\e[34mOutput options :\e[0m"
   echo
   echo -en "> Rename images : "; colorise "$renameImages"
-  echo -en "> Rename video : "; colorise "$renameVideos"
-  echo -en "> Rename audio : "; colorise "$renameAudios"
+  echo -en "> Rename videos : "; colorise "$renameVideos"
+  echo -en "> Rename audios : "; colorise "$renameAudios"
   echo
   echo -en "> Renamed extentions : "; colorise "$renamedExtentions"
   echo
