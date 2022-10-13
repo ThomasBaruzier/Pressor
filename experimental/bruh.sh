@@ -8,12 +8,16 @@ getConfig() {
   inputs=('.')
   output='.'
 
+  images='true'
   videos='true'
-  photos='true'
   audios='true'
 
   includedExtentions=''
   excludedExtentions=''
+
+  imageCodec='avif'
+  videoCodec='av1'
+  audioCodec='opus'
 
   recursive='true'
   overwrite='false'
@@ -32,9 +36,9 @@ processArgs() {
   for ((i=0; i < "${#args[@]}"; i++)); do
     [[ "${args[i]}" = '-h' || "${args[i]}" = '--help' ]] && printHelp
     [[ "${args[i]}" = '-i' || "${args[i]}" = '--include' ]] \
-    && videos='false' && photos='false' && audios='false' && unset includedExtentions
+    && videos='false' && images='false' && audios='false' && unset includedExtentions
     [[ "${args[i]}" = '-e' || "${args[i]}" = '--exclude' ]] \
-    && videos='true' && photos='true' && audios='true' && unset excludedExtentions
+    && videos='true' && images='true' && audios='true' && unset excludedExtentions
   done
 
   # get paths
@@ -137,8 +141,8 @@ printHelp() {
   echo
   echo "Input options :"
   echo
-  echo "  -i, --include {all|none|videos|photos|audios|<extention(s)>}"
-  echo "  -e, --exclude {all|none|videos|photos|audios|<extention(s)>}"
+  echo "  -i, --include {all|none|videos|images|audios|<extention(s)>}"
+  echo "  -e, --exclude {all|none|videos|images|audios|<extention(s)>}"
   echo "      > Include or exclude file types or extentions"
   echo "      > Default : all (in both options)"
   echo
@@ -151,7 +155,7 @@ printHelp() {
   echo
   echo "Encoding options :"
   echo
-  echo "  -C, --codec {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"
+  echo "  -c, --codec {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"
 #  echo "      > Choose encoding codecs and quality parameters"
 #  echo "      > Quality arguments (for common users) :"
 #  echo "        {quality score/10} {compression efficiency/10} {audio quality/10}"
@@ -173,16 +177,16 @@ printHelp() {
 #  echo "          > Default : "
 #  echo "        • mp3|opus <bitrate> (256-6)"
 #  echo "          > Default : "
-#  echo "  -c, --crop {all|photos|videos} <width>x<height>"
+#  echo "  -c, --crop {all|images|videos} <width>x<height>"
 #  echo "      > Crop and zoom to fit whithout distortions"
 #  echo "      > Default : "
-#  echo "  -m, --max-size {all|photos|videos} <pixels>"
+#  echo "  -m, --max-size {all|images|videos} <pixels>"
 #  echo "      > Set a maximum lenght size in pixels"
 #  echo "      > Default : "
 #  echo
 #  echo "Output options :"
 #  echo
-#  echo "  -R, --rename {all|none|photos|videos|audios}"
+#  echo "  -R, --rename {all|none|videos|image|audios|<extention(s)>}"
 #  echo "      > Rename the output files to their timestamps"
 #  echo "      > Default : "
 #  echo "  -T, --copy-tree"
@@ -212,7 +216,7 @@ printVerbose() {
   echo -en "> Input(s) : "; colorise "${inputs[@]}"
   echo -en "> Output : "; colorise "$output"
   echo
-  echo -en "> Photos : "; colorise "$photos"
+  echo -en "> Images : "; colorise "$images"
   echo -en "> Videos : "; colorise "$videos"
   echo -en "> Audios : "; colorise "$audios"
   echo
@@ -221,6 +225,12 @@ printVerbose() {
   echo
   echo -en "> Recursive : "; colorise "$recursive"
   echo -en "> Overwrite : "; colorise "$overwrite"
+  echo
+  echo -e "\e[34mEncoding options :\e[0m"
+  echo
+  echo -en "> Image codec : "; colorise "$imageCodec"
+  echo -en "> Video codec : "; colorise "$videoCodec"
+  echo -en "> Audio codec : "; colorise "$audioCodec"
   echo
   echo -e "\e[34mOther options :\e[0m"
   echo
@@ -236,8 +246,8 @@ colorise() {
   case "$1" in
     'true') echo -e "\e[32mtrue\e[0m";;
     'false') echo -e "\e[31mfalse\e[0m";;
-    '') echo -e "\e[36mundefined\e[0m";;
-    *) echo -e "\e[35m$@\e[0m";;
+    '') echo -e "\e[35mundefined\e[0m";;
+    *) echo -e "\e[36m$@\e[0m";;
   esac
 
 }
@@ -291,48 +301,48 @@ echo; exit
 # OPTIONS
 
 INCLUDE
-image*|photo*|picture*|pic*) photos='true';;
+image*|photo*|picture*|pic*) images='true';;
 movie*|video*|vid*) videos='true';;
 music*|audio*) audios='true';;
-default|all|everything) photos='true'; videos='true'; audios='true';;
-none|nothing) photos='false'; videos='false'; audios='false';;
+default|all|everything) images='true'; videos='true'; audios='true';;
+none|nothing) images='false'; videos='false'; audios='false';;
 *) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; includedExtentions+=" $extention"; excludedExtentions="${excludedExtentions// $extention}";;
 
 EXCLUDE
-image*|photo*|picture*|pic*) photos='false';;
+image*|photo*|picture*|pic*) images='false';;
 movie*|video*|vid*) videos='false';;
 music*|audio*) audios='false';;
-default|all|everything) photos='false'; videos='false'; audios='false';;
-none|nothing) photos='true'; videos='true'; audios='true';;
+default|all|everything) images='false'; videos='false'; audios='false';;
+none|nothing) images='true'; videos='true'; audios='true';;
 *) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; excludedExtentions+=" $extention"; includedExtentions="${includedExtentions// $extention}";;
 
 RECURSIVE
 default|y|yes|'true') recursive='true';;
 n|no|'false') recursive='false';;
-*) error 'badParam' '-r or --recursive' "$1";;
+*) error 'badParam' '-r or --recursive' "${nextArgs[index]}";;
 
 OVERWRITE
 default|y|yes|'enable'|'true') overwrite='true';;
 n|no|disable|'false') overwrite='false';;
-*) error 'badParam' '-o or --overwrite' "$1";;
+*) error 'badParam' '-o or --overwrite' "${nextArgs[index]}";;
 
 CODEC
-jpg|jxl|avif) codec="${nextArgs[index]}";;
-h264|h265|vp9|av1|vvc) codec="${nextArgs[index]}";;
-mp3|opus) codec="${nextArgs[index]}";;
-*) error 'badParam' '-c or --codec' "$1";;
+jpg|jxl|avif) imageCodec="${nextArgs[index]}";;
+h264|h265|vp9|av1|vvc) videoCodec="${nextArgs[index]}";;
+mp3|opus) audioCodec="${nextArgs[index]}";;
+*) error 'badParam' '-c or --codec' "${nextArgs[index]}";;
 
 THREADS
 availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
 all|max|everything) threads="$availableThreads";;
-[1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "$1" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$1" || threads="$(($1))";;
+[1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "${nextArgs[index]}" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "${nextArgs[index]}" || threads="$((${nextArgs[index]}))";;
 default) warn 'noParam' '-t or --threads' "$availableThreads threads" && threads="$availableThreads";;
-*) error 'badParam' '-t or --threads' "$1";;
+*) error 'badParam' '-t or --threads' "${nextArgs[index]}";;
 
 VERBOSE
 default|y|yes|'enable'|'true') verbose='true';;
 n|no|disable|'false') verbose='false';;
-*) error 'badParam' '-v or --verbose' "$1";;
+*) error 'badParam' '-v or --verbose' "${nextArgs[index]}";;
 
 LOG
 default) info 'noFile' '-l or --log' "log.txt" && log='log.txt';;
@@ -344,7 +354,7 @@ LOGLEVEL
 1|w|warn*|warning*) loglevel='warning';;
 0|e|err|error*) loglevel='error';;
 default) error 'noParam' '-L or --loglevel';;
-*) error 'badParam' '-L or --loglevel' "$1";;
+*) error 'badParam' '-L or --loglevel' "${nextArgs[index]}";;
 
 HELP
 *) printHelp;;
