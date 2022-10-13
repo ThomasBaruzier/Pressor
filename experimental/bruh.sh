@@ -50,7 +50,7 @@ processArgs() {
 
   # determine if elements in paths are input or output
   if [ "${#paths[@]}" = 0 ]; then
-    warn 'noArg' "${inputs[@]} as input(s) and $output as output"
+    warn 'noArg' "'${inputs[@]}' as input(s) and '$output' as output"
   elif [ "${#paths[@]}" = 1 ]; then
     inputs="$args"
   else
@@ -125,7 +125,7 @@ optionBuilder() {
 
     # build and fire the function
     elif [[ -n "$optionName" ]]; then
-      source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
+      source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); name='"$optionName"'; id='"$optionID"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do arg="${optionArgs[index]}"; case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
       unset optionName optionID optionCases optionTasks index
     fi
   done
@@ -183,19 +183,19 @@ printHelp() {
 #  echo "  -m, --max-size {all|images|videos} <pixels>"
 #  echo "      > Set a maximum lenght size in pixels"
 #  echo "      > Default : "
-#  echo
-#  echo "Output options :"
-#  echo
-#  echo "  -R, --rename {all|none|videos|image|audios|<extention(s)>}"
-#  echo "      > Rename the output files to their timestamps"
-#  echo "      > Default : "
-#  echo "  -T, --copy-tree"
-#  echo "      > Replicate the input folder hierarachy for output"
-#  echo "      > Default : true"
+  echo
+  echo "Output options :"
+  echo
+  echo "  -R, --rename {all|none|videos|image|audios|<extention(s)>}"
+  echo "      > Rename the output files to their timestamps"
+  echo "      > Default : none"
+  echo "  -t, --tree"
+  echo "      > Copy the input folder hierarachy to output"
+  echo "      > Default : true"
   echo
   echo "Other options :"
   echo
-  echo "  -t, --threads <all|number-of-threads>"
+  echo "  -T, --threads <all|number-of-threads>"
   echo "      > Number of threads to use"
   echo "      > Default : all"
   echo
@@ -306,7 +306,7 @@ movie*|video*|vid*) videos='true';;
 music*|audio*) audios='true';;
 default|all|everything) images='true'; videos='true'; audios='true';;
 none|nothing) images='false'; videos='false'; audios='false';;
-*) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; includedExtentions+=" $extention"; excludedExtentions="${excludedExtentions// $extention}";;
+*) extention="${arg/\./}"; extention="${extention,,}"; includedExtentions+=" $extention"; excludedExtentions="${excludedExtentions// $extention}";;
 
 EXCLUDE
 image*|photo*|picture*|pic*) images='false';;
@@ -314,35 +314,49 @@ movie*|video*|vid*) videos='false';;
 music*|audio*) audios='false';;
 default|all|everything) images='false'; videos='false'; audios='false';;
 none|nothing) images='true'; videos='true'; audios='true';;
-*) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; excludedExtentions+=" $extention"; includedExtentions="${includedExtentions// $extention}";;
+*) extention="${arg/\./}"; extention="${extention,,}"; excludedExtentions+=" $extention"; includedExtentions="${includedExtentions// $extention}";;
 
 RECURSIVE
 default|y|yes|'true') recursive='true';;
 n|no|'false') recursive='false';;
-*) error 'badParam' '-r or --recursive' "${nextArgs[index]}";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 OVERWRITE
 default|y|yes|'enable'|'true') overwrite='true';;
 n|no|disable|'false') overwrite='false';;
-*) error 'badParam' '-o or --overwrite' "${nextArgs[index]}";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 CODEC
-jpg|jxl|avif) imageCodec="${nextArgs[index]}";;
-h264|h265|vp9|av1|vvc) videoCodec="${nextArgs[index]}";;
-mp3|opus) audioCodec="${nextArgs[index]}";;
-*) error 'badParam' '-c or --codec' "${nextArgs[index]}";;
+jpg|jxl|avif) imageCodec="$arg";;
+h264|h265|vp9|av1|vvc) videoCodec="$arg";;
+mp3|opus) audioCodec="$arg";;
+default) error 'noParam' '-c or --codec';;
+*) error 'badParam' "$id or $name" "$arg";;
+
+RENAME
+default|y|yes|'enable'|'true') verbose='true';;
+n|no|disable|'false') verbose='false';;
+*) error 'badParam' "$id or $name" "$arg";;
+
+TREE
+image*|photo*|picture*|pic*) renameImages='true';;
+movie*|video*|vid*) renameVideos='true';;
+music*|audio*) renameAudios='true';;
+default|all|everything) renameImages='true'; renameVideos='true'; renameAudios='true';;
+none|nothing) renameImages='false'; renameVideos='false'; renameAudios='false';;
+*) extention="${nextArgs[index]/\./}"; extention="${extention,,}"; renamedExtentions+=" $extention"; renammedExtentions="${excludedExtentions// $extention}";;
 
 THREADS
 availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
 all|max|everything) threads="$availableThreads";;
-[1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "${nextArgs[index]}" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "${nextArgs[index]}" || threads="$((${nextArgs[index]}))";;
+[1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "$arg" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$arg" || threads="$(($arg))";;
 default) warn 'noParam' '-t or --threads' "$availableThreads threads" && threads="$availableThreads";;
-*) error 'badParam' '-t or --threads' "${nextArgs[index]}";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 VERBOSE
 default|y|yes|'enable'|'true') verbose='true';;
 n|no|disable|'false') verbose='false';;
-*) error 'badParam' '-v or --verbose' "${nextArgs[index]}";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 LOG
 default) info 'noFile' '-l or --log' "log.txt" && log='log.txt';;
@@ -354,7 +368,7 @@ LOGLEVEL
 1|w|warn*|warning*) loglevel='warning';;
 0|e|err|error*) loglevel='error';;
 default) error 'noParam' '-L or --loglevel';;
-*) error 'badParam' '-L or --loglevel' "${nextArgs[index]}";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 HELP
 *) printHelp;;
