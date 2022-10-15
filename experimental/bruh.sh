@@ -34,7 +34,6 @@ getConfig() {
   cropVideos='false'
   cropImageValues=''
   cropVideoValues=''
-  cropExtentions=''
 
   threads='all'
 
@@ -69,7 +68,7 @@ processArgs() {
     [[ "${args[i]}" = '-R' || "${args[i]}" = '--rename' ]] \
     && renameVideos='false' && renameImages='false' && renameAudios='false' && unset renameExtentions
     [[ "${args[i]}" = '-C' || "${args[i]}" = '--crop' ]] \
-    && cropVideos='false' && cropImages='false' && cropAudios='false' && unset cropExtentions
+    && cropVideos='false' && cropImages='false' && cropAudios='false'
   done
 
   # get paths
@@ -275,7 +274,6 @@ printVerbose() {
   echo -en "> Crop videos : "; colorise "$cropVideos"
   echo -en "> Crop image value(s) : "; colorise "${cropImageValues[@]}"
   echo -en "> Crop video value(s) : "; colorise "${cropVideoValues[@]}"
-  echo -en "> Crop extentions : "; colorise "${cropExtentions:1}"
   echo
   echo -en "> Threads : "; colorise "$threads"
   echo
@@ -351,21 +349,36 @@ info() {
 
 cropAdvanced() {
 
-  echo "arg : ${nextArgs[index-1]}"
-  echo "option : $arg"
-  if [[ "$arg" =~ ^[0-9]+'x'?':'?[0-9]+$ ]]; then
-    if [[ "$arg" =~ ^[0-9]+$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
-    arg="${arg/x/ }"
-    arg="${arg/:/ }"
-    case "${nextArgs[index-1]}" in
-      image*|photo*|picture*|pic*) cropImageValues="$arg";;
-      movie*|video*|vid*) cropVideoValues="$arg";;
-      default|all|everything) cropImageValues="$arg"; cropImageValues="$arg";;
-      none|nothing) warn 'badParam' "${nextArgs[index-1]} (you need to specify a valid type of file to apply crop values)";;
-    esac
-  else
-    extention="${arg/\./}" && extention="${extention,,}" && cropExtentions="${cropExtentions// $extention}" && cropExtentions+=" $extention"
+  echo "arg : ${nextArgs[index-1]} - $arg - ${nextArgs[index+1]} - $index"
+  if [[ "$arg" =~ ^[0-9]+$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
+    dimentions="${arg} ${nextArgs[index+1]}"
+    ((index++))
+  elif [[ "$arg" =~ ^[0-9]+'x'?':'?[0-9]+$ ]]; then
+    dimentions="${arg/x/ }"
+    dimentions="${dimentions/:/ }"
   fi
+  echo "size : $dimentions"
+#  if [[ "$index" = 0 ]]
+#  if [[ images?\|photos?\|pictures?\|pics?\|movies?\|videos?\|vids?\|default\|all\|everything\|none\|nothing\|"$arg" =~ "${nextArgs[index-1]}" ]]; then
+#    echo test passed
+#    if [[ "$arg" =~ ^[0-9]+'x'?':'?[0-9]+$ ]]; then
+#      if [[ "$arg" =~ ^[0-9]+$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
+#        echo detected double dimention
+#        dimentions="${arg} ${nextArgs[index+1]}"
+#      else
+#        dimentions="${arg/x/ }"
+#        dimentions="${dimentions/:/ }"
+#      fi
+#      case "${nextArgs[index-1]}" in
+#        image*|photo*|picture*|pic*) cropImageValues="$dimentions";;
+#        movie*|video*|vid*) cropVideoValues="$dimentions";;
+#        default|all|everything) cropImageValues="$dimentions"; cropImages='true'; cropVideos='true'; cropImageValues="$dimentions"; cropVideoValues="$dimentions";;
+#        none|nothing) warn 'badParam' "${nextArgs[index-1]} (you need to specify a valid type of file to apply crop values)";;
+#      esac
+#    else
+#      error 'badParam' "$arg"
+#    fi
+#  fi
 
 }
 
