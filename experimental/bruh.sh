@@ -354,6 +354,7 @@ cropAdvanced() {
   echo "arg : ${nextArgs[index-1]}"
   echo "option : $arg"
   if [[ "$arg" =~ ^[0-9]+'x'?':'?[0-9]+$ ]]; then
+    if [[ "$arg" =~ ^[0-9]+$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
     arg="${arg/x/ }"
     arg="${arg/:/ }"
     case "${nextArgs[index-1]}" in
