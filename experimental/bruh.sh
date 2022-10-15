@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# TODO
+
+## better case regex
+## exclude extentions in all concerned options
+## exige a dot to confirm extention or be considered as error
 
 # INITIALISATION
 
@@ -13,9 +18,8 @@ getConfig() {
   images='true'
   videos='true'
   audios='true'
-
-  includedExtentions=''
-  excludedExtentions=''
+  includeExtentions=''
+  excludeExtentions=''
 
   recursive='true'
   overwrite='false'
@@ -26,6 +30,12 @@ getConfig() {
   videoCodec='av1'
   audioCodec='opus'
 
+  cropImages='false'
+  cropVideos='false'
+  cropImageValues=''
+  cropVideoValues=''
+  cropExtentions=''
+
   threads='all'
 
   # output options
@@ -33,8 +43,7 @@ getConfig() {
   renameImages='false'
   renameVideos='false'
   renameAudios='false'
-
-  renamedExtentions=''
+  renameExtentions=''
 
   tree='true'
 
@@ -54,11 +63,13 @@ processArgs() {
     args[i]="${args[i]/\~/$HOME}"
     [[ "${args[i]}" = '-h' || "${args[i]}" = '--help' ]] && printHelp
     [[ "${args[i]}" = '-i' || "${args[i]}" = '--include' ]] \
-    && videos='false' && images='false' && audios='false' && unset includedExtentions
+    && videos='false' && images='false' && audios='false' && unset includeExtentions
     [[ "${args[i]}" = '-e' || "${args[i]}" = '--exclude' ]] \
-    && videos='true' && images='true' && audios='true' && unset excludedExtentions
+    && videos='true' && images='true' && audios='true' && unset excludeExtentions
     [[ "${args[i]}" = '-R' || "${args[i]}" = '--rename' ]] \
-    && renameVideos='false' && renameImages='false' && renameAudios='false' && unset renamedExtentions
+    && renameVideos='false' && renameImages='false' && renameAudios='false' && unset renameExtentions
+    [[ "${args[i]}" = '-C' || "${args[i]}" = '--crop' ]] \
+    && cropVideos='false' && cropImages='false' && cropAudios='false' && unset cropExtentions
   done
 
   # get paths
@@ -73,7 +84,11 @@ processArgs() {
     inputs="$args"
   elif [ "${#paths[@]}" != 0 ]; then
     inputs=("${paths[@]::${#paths[@]}-1}")
-    output="${paths[-1]}"
+    if [[ -f "${paths[-1]}" ]]; then
+      inputs+=("${paths[-1]}")
+    else
+      output="${paths[-1]}"
+    fi
   fi
 
   # loop through the next arguments
@@ -203,12 +218,10 @@ printHelp() {
 #  echo "          > Default : "
 #  echo "        • mp3|opus <bitrate> (256-6)"
 #  echo "          > Default : "
-#  echo "  -c, --crop {all|images|videos} <width>x<height>"
-#  echo "      > Crop and zoom to fit whithout distortions"
-#  echo "      > Default : "
-#  echo "  -m, --max-size {all|images|videos} <pixels>"
-#  echo "      > Set a maximum lenght size in pixels"
-#  echo "      > Default : "
+  echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]} {all|images|videos} <width>x<height>|<max-length>"; ((i++))
+  echo "      > Crop and zoom to fit or set a maximum length without distortions"
+  echo "      > Default : none"
   echo
   echo "  ${optionIDs[i]}, ${optionNames[i]} <all|number-of-threads>"; ((i++))
   echo "      > Number of threads to use"
@@ -246,9 +259,8 @@ printVerbose() {
   echo -en "> Images : "; colorise "$images"
   echo -en "> Videos : "; colorise "$videos"
   echo -en "> Audios : "; colorise "$audios"
-  echo
-  echo -en "> Included extentions : "; colorise "${includedExtentions:1}"
-  echo -en "> Excluded extentions : "; colorise "${excludedExtentions:1}"
+  echo -en "> Include extentions : "; colorise "${includeExtentions:1}"
+  echo -en "> Exclude extentions : "; colorise "${excludeExtentions:1}"
   echo
   echo -en "> Recursive : "; colorise "$recursive"
   echo -en "> Overwrite : "; colorise "$overwrite"
@@ -259,6 +271,12 @@ printVerbose() {
   echo -en "> Video codec : "; colorise "$videoCodec"
   echo -en "> Audio codec : "; colorise "$audioCodec"
   echo
+  echo -en "> Crop images : "; colorise "$cropImages"
+  echo -en "> Crop videos : "; colorise "$cropVideos"
+  echo -en "> Crop image value(s) : "; colorise "${cropImageValues[@]}"
+  echo -en "> Crop video value(s) : "; colorise "${cropVideoValues[@]}"
+  echo -en "> Crop extentions : "; colorise "${cropExtentions:1}"
+  echo
   echo -en "> Threads : "; colorise "$threads"
   echo
   echo -e "\e[34mOutput options :\e[0m"
@@ -266,8 +284,7 @@ printVerbose() {
   echo -en "> Rename images : "; colorise "$renameImages"
   echo -en "> Rename videos : "; colorise "$renameVideos"
   echo -en "> Rename audios : "; colorise "$renameAudios"
-  echo
-  echo -en "> Renamed extentions : "; colorise "$renamedExtentions"
+  echo -en "> Rename extentions : "; colorise "$renameExtentions"
   echo
   echo -en "> Tree : "; colorise "$tree"
   echo
@@ -294,7 +311,7 @@ error() {
 
   echo -en '\e[31m\nERROR : '
   case "$1" in
-    'badArg') echo "Unknown argument provided : $2";;
+    'badArg') echo "Wrong or unknown argument provided : $2";;
     'noArg') echo "No arguments provided";;
     'badParam') echo "Wrong parameter provided for argument $2 : $3";;
     'noParam') echo "No parameter provided for argument $2";;
@@ -312,6 +329,7 @@ warn() {
   case "$1" in
     'noArg') echo "No arguments provided : Using $2";;
     'noParam') echo "No parameter provided for argument $2 : Using $3";;
+    'badParam') echo "Wrong or unknown parameter provided for argument $2";;
     'createPath') echo "Not a valid path : $2. Creating it.";;
     'maxThreads') echo "Using $2 threads instead of $3 (it's the maximum available)";;
   esac
@@ -326,6 +344,27 @@ info() {
   case "$1" in
     'noFile') echo "No filename provided for $2 : Using $3";;
   esac
+
+}
+
+# ADVANCED OPTIONS
+
+cropAdvanced() {
+
+  echo "arg : ${nextArgs[index-1]}"
+  echo "option : $arg"
+  if [[ "$arg" =~ ^[0-9]+'x'?':'?[0-9]+$ ]]; then
+    arg="${arg/x/ }"
+    arg="${arg/:/ }"
+    case "${nextArgs[index-1]}" in
+      image*|photo*|picture*|pic*) cropImageValues="$arg";;
+      movie*|video*|vid*) cropVideoValues="$arg";;
+      default|all|everything) cropImageValues="$arg"; cropImageValues="$arg";;
+      none|nothing) warn 'badParam' "${nextArgs[index-1]} (you need to specify a valid type of file to apply crop values)";;
+    esac
+  else
+    extention="${arg/\./}" && extention="${extention,,}" && cropExtentions="${cropExtentions// $extention}" && cropExtentions+=" $extention"
+  fi
 
 }
 
@@ -344,7 +383,7 @@ movie*|video*|vid*) videos='true';;
 music*|audio*) audios='true';;
 default|all|everything) images='true'; videos='true'; audios='true';;
 none|nothing) images='false'; videos='false'; audios='false';;
-*) extention="${arg/\./}"; extention="${extention,,}"; includedExtentions+=" $extention"; excludedExtentions="${excludedExtentions// $extention}";;
+*) extention="${arg/\./}"; extention="${extention,,}"; includeExtentions+=" $extention"; excludeExtentions="${excludeExtentions// $extention}";;
 
 EXCLUDE
 image*|photo*|picture*|pic*) images='false';;
@@ -352,7 +391,7 @@ movie*|video*|vid*) videos='false';;
 music*|audio*) audios='false';;
 default|all|everything) images='false'; videos='false'; audios='false';;
 none|nothing) images='true'; videos='true'; audios='true';;
-*) extention="${arg/\./}"; extention="${extention,,}"; excludedExtentions+=" $extention"; includedExtentions="${includedExtentions// $extention}";;
+*) extention="${arg/\./}"; extention="${extention,,}"; excludeExtentions+=" $extention"; includeExtentions="${includeExtentions// $extention}";;
 
 RECURSIVE
 default|y|yes|'true') recursive='true';;
@@ -368,14 +407,22 @@ CODEC
 jpg|jxl|avif) imageCodec="$arg";;
 h264|h265|vp9|av1|vvc) videoCodec="$arg";;
 mp3|opus) audioCodec="$arg";;
-default) error 'noParam' '-c or --codec';;
+default) error 'noParam' "$id or $name" "$arg";;
 *) error 'badParam' "$id or $name" "$arg";;
+
+CROP
+image*|photo*|picture*|pic*) cropImages='true';;
+movie*|video*|vid*) cropVideos='true';;
+music*|audio*) error 'badArg' "$arg (you can't crop audio files)";;
+default|all|everything) cropImages='true'; cropVideos='true';;
+none|nothing) cropImages='false'; cropVideos='false';;
+*) cropAdvanced;;
 
 THREADS
 availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
 all|max|everything) threads="$availableThreads";;
 [1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "$arg" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$arg" || threads="$(($arg))";;
-default) warn 'noParam' '-t or --threads' "$availableThreads threads" && threads="$availableThreads";;
+default) warn 'noParam' "$id or $name" "$arg" "$availableThreads threads" && threads="$availableThreads";;
 *) error 'badParam' "$id or $name" "$arg";;
 
 RENAME
@@ -384,7 +431,7 @@ movie*|video*|vid*) renameVideos='true';;
 music*|audio*) renameAudios='true';;
 default|all|everything) renameImages='true'; renameVideos='true'; renameAudios='true';;
 none|nothing) renameImages='false'; renameVideos='false'; renameAudios='false';;
-*) extention="${arg/\./}"; extention="${extention,,}"; renamedExtentions="${renamedExtentions// $extention}"; renamedExtentions+=" $extention";;
+*) extention="${arg/\./}"; extention="${extention,,}"; renameExtentions="${renameExtentions// $extention}"; renameExtentions+=" $extention";;
 
 TREE
 default|y|yes|'true') tree='true';;
@@ -397,7 +444,7 @@ n|no|'false') verbose='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 LOG
-default) info 'noFile' '-l or --log' "log.txt" && log='log.txt';;
+default) info 'noFile' "$id or $name" "$arg" "log.txt" && log='log.txt';;
 */*) [[ ! -d "${nextArgs%/*}" ]] && error 'badPath' "${nextArgs%/*}"; log="$nextArgs";;
 *) log="$nextArgs";;
 
@@ -405,7 +452,7 @@ LOGLEVEL
 2|i|info*|information*) loglevel='info';;
 1|w|warn*|warning*) loglevel='warning';;
 0|e|err|error*) loglevel='error';;
-default) error 'noParam' '-L or --loglevel';;
+default) error 'noParam' "$id or $name";;
 *) error 'badParam' "$id or $name" "$arg";;
 
 HELP
