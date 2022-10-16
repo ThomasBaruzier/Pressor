@@ -30,10 +30,10 @@ getConfig() {
   videoCodec='av1'
   audioCodec='opus'
 
-  cropImages='false'
-  cropVideos='false'
-  cropImageValues=''
-  cropVideoValues=''
+  cropImages='true'
+  cropVideos='true'
+  cropImageValues='3000'
+  cropVideoValues='2000'
 
   threads='all'
 
@@ -123,6 +123,10 @@ processArgs() {
       [[ -d "$i" || -f "$i" ]] || error 'badPath' "$i"
     fi
   done
+#  if [[ "$cropImages" != "$cropVideos" ]]; then
+    [[ -n "${cropImageValues[@]}" && -z "${cropVideoValues[@]}" ]] && cropVideoValues="${cropImageValues[@]}"
+    [[ -z "${cropImageValues[@]}" && -n "${cropVideoValues[@]}" ]] && cropImageValues=("${cropVideoValues[@]}")
+#  fi
   [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" || [[ ! -d "$output" ]] && warn 'createPath' "$output"
   [ "$verbose" = 'true' ] && printVerbose
   [[ "$log" != 'false' && "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
@@ -349,36 +353,22 @@ info() {
 
 cropAdvanced() {
 
-  echo "arg : ${nextArgs[index-1]} - $arg - ${nextArgs[index+1]} - $index"
-  if [[ "$arg" =~ ^[0-9]+$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
+  if [[ "$arg" =~ ^[0-9]*$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
     dimentions="${arg} ${nextArgs[index+1]}"
     ((index++))
-  elif [[ "$arg" =~ ^[0-9]+'x'?':'?[0-9]+$ ]]; then
+  elif [[ "$arg" =~ ^[0-9]*'x'?':'?[0-9]*$ ]]; then
     dimentions="${arg/x/ }"
     dimentions="${dimentions/:/ }"
+  else
+    error 'badArg' "$arg"
   fi
-  echo "size : $dimentions"
-#  if [[ "$index" = 0 ]]
-#  if [[ images?\|photos?\|pictures?\|pics?\|movies?\|videos?\|vids?\|default\|all\|everything\|none\|nothing\|"$arg" =~ "${nextArgs[index-1]}" ]]; then
-#    echo test passed
-#    if [[ "$arg" =~ ^[0-9]+'x'?':'?[0-9]+$ ]]; then
-#      if [[ "$arg" =~ ^[0-9]+$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
-#        echo detected double dimention
-#        dimentions="${arg} ${nextArgs[index+1]}"
-#      else
-#        dimentions="${arg/x/ }"
-#        dimentions="${dimentions/:/ }"
-#      fi
-#      case "${nextArgs[index-1]}" in
-#        image*|photo*|picture*|pic*) cropImageValues="$dimentions";;
-#        movie*|video*|vid*) cropVideoValues="$dimentions";;
-#        default|all|everything) cropImageValues="$dimentions"; cropImages='true'; cropVideos='true'; cropImageValues="$dimentions"; cropVideoValues="$dimentions";;
-#        none|nothing) warn 'badParam' "${nextArgs[index-1]} (you need to specify a valid type of file to apply crop values)";;
-#      esac
-#    else
-#      error 'badParam' "$arg"
-#    fi
-#  fi
+  [[ "$arg" = 0 || "${nextArgs[index+1]}" = 0 ]] && error 'badArg' "0 (you can't crop by 0)"
+  case "${nextArgs[index-1]}" in
+    image*|photo*|picture*|pic*) cropImageValues="$dimentions";;
+    movie*|video*|vid*) cropVideoValues="$dimentions";;
+    "$arg"|default|all|everything) cropImageValues="$dimentions"; cropImages='true'; cropVideos='true'; cropImageValues="$dimentions"; cropVideoValues="$dimentions";;
+    none|nothing) warn 'badParam' "${nextArgs[index-1]} (you need to specify a valid type of file to apply crop values)";;
+  esac
 
 }
 
