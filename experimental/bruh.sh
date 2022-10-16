@@ -30,10 +30,10 @@ getConfig() {
   videoCodec='av1'
   audioCodec='opus'
 
-  cropImages='true'
-  cropVideos='true'
-  cropImageValues='3000'
-  cropVideoValues='2000'
+  cropImages='false'
+  cropVideos='false'
+  cropImageValues=''
+  cropVideoValues=''
 
   threads='all'
 
@@ -204,23 +204,23 @@ printHelp() {
 #  echo "      > Quality arguments (for common users) :"
 #  echo "        {quality score/10} {compression efficiency/10} {audio quality/10}"
   echo "      > Default : set in config"
-#  echo "      > Quality arguments (for expert users) :"
-#  echo "        • jpg <q:scale> (2-31) <preset> (placebo-veryfast)"
-#  echo "          > Default : "
-#  echo "        • jxl (planned for future versions)"
-#  echo "          > Default : "
-#  echo "        • avif <min> (0-63) <max> (0-63) <speed> (0-10)"
-#  echo "          > Default : "
-#  echo "        • h264|h265 <crf> (0-63) <preset> (placebo-veryfast) <opus-bitrate> (256-6)"
-#  echo "          > Default : "
-#  echo "        • vp9 <crf> (0-63) <cpu-used> (-8-8) <opus-bitrate> (256-6)"
-#  echo "          > Default : "
-#  echo "        • av1 <cq-level> (0-8) <cpu-used> (0-9) <opus-bitrate> (256-6)"
-#  echo "          > Default : "
-#  echo "        • vvc <preset> (slower-fast) <bitrate|qc> (n|0-63)"
-#  echo "          > Default : "
-#  echo "        • mp3|opus <bitrate> (256-6)"
-#  echo "          > Default : "
+  echo "      > Quality arguments (for expert users) :"
+  echo "        • jpg <q:scale> (2-31) <preset> (placebo-veryfast)"
+  echo "          > Default : "
+  echo "        • jxl (planned for future versions)"
+  echo "          > Default : "
+  echo "        • avif <min> (0-63) <max> (0-63) <speed> (0-10)"
+  echo "          > Default : "
+  echo "        • h264|h265 <crf> (0-63) <preset> (placebo-veryfast) <opus-bitrate> (256-6)"
+  echo "          > Default : "
+  echo "        • vp9 <crf> (0-63) <cpu-used> (-8-8) <opus-bitrate> (256-6)"
+  echo "          > Default : "
+  echo "        • av1 <cq-level> (0-8) <cpu-used> (0-9) <opus-bitrate> (256-6)"
+  echo "          > Default : "
+  echo "        • vvc <preset> (slower-fast) <bitrate|qc> (n|0-63)"
+  echo "          > Default : "
+  echo "        • mp3|opus <bitrate> (256-6)"
+  echo "          > Default : "
   echo
   echo "  ${optionIDs[i]}, ${optionNames[i]} {all|images|videos} <width>x<height>|<max-length>"; ((i++))
   echo "      > Crop and zoom to fit or set a maximum length without distortions"
@@ -318,6 +318,8 @@ error() {
     'badParam') echo "Wrong parameter provided for argument $2 : $3";;
     'noParam') echo "No parameter provided for argument $2";;
     'badPath') echo "Non-existing path provided : $2";;
+    'badCons') echo "Bad option construction for argument $2"; echo "Usage : $3";;
+    'badOption') echo "Wrong option $2 for parameter $3 inside of argument $4";;
   esac
   echo -e "\e[0mFor help, use $0 --help\n"
   exit
@@ -356,9 +358,11 @@ cropAdvanced() {
   if [[ "$arg" =~ ^[0-9]*$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
     dimentions="${arg} ${nextArgs[index+1]}"
     ((index++))
+    [[ "$index" = 1 && "${nextArgs[index+1]}" =~ [a-zA-Z] ]] && error "badCons" "$id or $name" "$name <type> <dimention(s)> or --crop <dimention(s)>"
   elif [[ "$arg" =~ ^[0-9]*'x'?':'?[0-9]*$ ]]; then
     dimentions="${arg/x/ }"
     dimentions="${dimentions/:/ }"
+    [[ "$index" = 0 && "${nextArgs[index+1]}" =~ [a-zA-Z] ]] && error "badCons" "$id or $name" "$name <type> <dimention(s)> or --crop <dimention(s)>"
   else
     error 'badArg' "$arg"
   fi
@@ -366,11 +370,54 @@ cropAdvanced() {
   case "${nextArgs[index-1]}" in
     image*|photo*|picture*|pic*) cropImageValues="$dimentions";;
     movie*|video*|vid*) cropVideoValues="$dimentions";;
+    none|nothing) error 'badOption' "$arg" "${nextArgs[index-1]}" "$id or $name (you need to specify a valid type of file to apply crop values)";;
     "$arg"|default|all|everything) cropImageValues="$dimentions"; cropImages='true'; cropVideos='true'; cropImageValues="$dimentions"; cropVideoValues="$dimentions";;
-    none|nothing) warn 'badParam' "${nextArgs[index-1]} (you need to specify a valid type of file to apply crop values)";;
   esac
 
 }
+
+codecAdvanced() {
+
+  echo
+  echo "i $index | -1 ${nextArgs[index-1]} | 0  $arg | +1 ${nextArgs[index+1]}"
+  echo
+  if [[ jpg\|jxl\|avif\|h264\|h265\|vp9\|av1\|vvc\|mp3\|opus =~ "${nextArgs[index-1]}" ]]; then
+    if [[ "$arg" =~ ^[0-9]+$ && "${nextArgs[index+1]}" =~ ^[0-9]+$ ]]; then
+      toProcess=("${nextArgs[index-1]}" "$arg" "${nextArgs[index+1]}")
+      echo "${toProcess[0]} + ${toProcess[1]} + ${toProcess[2]}"
+      ((index++))
+    elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+      toProcess=("${nextArgs[index-1]}" "$arg")
+      echo "${toProcess[0]} + ${toProcess[1]}"
+    else
+      error "badCons" "$id or $name" "$name <type> or $name <type> <quality> or $name <type> <quality> <efficiency>"
+    fi
+    if [[ -n "$toProcess" ]]; then
+      case "${toProcess[0]}" in
+        jpg) :;;
+        jxl) :;;
+        avif) :;;
+        h264) :;;
+        h265) :;;
+        vp9) :;;
+        av1) :;;
+        vvc) :;;
+        mp3) :;;
+        opus) :;;
+      esac
+      unset toProcess
+    fi
+  elif [[ -n "$toProcess" ]]; then
+    error 'badOption' "$arg" "${toProcess[0]}" "$id or $name"
+  else
+    error 'badParam' "$id or $name" "$arg"
+  fi
+
+#    error 'badOption' "$arg" "${nextArgs[index-1]}" "$id or $name (you need to specify a valid type of codec to tune it)"
+
+
+}
+
 
 # MAIN PROGRAM
 
@@ -412,7 +459,7 @@ jpg|jxl|avif) imageCodec="$arg";;
 h264|h265|vp9|av1|vvc) videoCodec="$arg";;
 mp3|opus) audioCodec="$arg";;
 default) error 'noParam' "$id or $name" "$arg";;
-*) error 'badParam' "$id or $name" "$arg";;
+*) codecAdvanced;;
 
 CROP
 image*|photo*|picture*|pic*) cropImages='true';;
