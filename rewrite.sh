@@ -354,6 +354,8 @@ error() {
     'badPath') echo "Non-existing path provided : $2";;
     'badCons') echo "Bad option construction for argument $2"; echo "Usage : $3";;
     'badOption') echo "Wrong option $2 for parameter $3 inside of argument $4";;
+    'numRange') echo "Option $2 is outside of range for parameter $3 inside of argument $4 :"; echo "$5";;
+    'valueRange') echo "Wrong option $2 for parameter $3 inside of argument $4 :"; echo "$5";;
   esac
   echo -e "\e[0mFor help, use $0 --help\n"
   exit
@@ -400,7 +402,9 @@ cropAdvanced() {
   else
     error 'badArg' "$arg"
   fi
+
   [[ "$arg" = 0 || "${nextArgs[index+1]}" = 0 ]] && error 'badArg' "0 (you can't crop by 0)"
+
   case "${nextArgs[index-1]}" in
     image*|photo*|picture*|pic*) cropImageValues="$dimentions";;
     movie*|video*|vid*) cropVideoValues="$dimentions";;
@@ -415,28 +419,76 @@ codecAdvanced() {
   case "${nextArgs[0]}" in
     jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus)
       toProcess+=("${nextArgs[index-1]}")
+
+      # scan next options
       while [[ -n "${nextArgs[index]}" ]]; do
         case "${nextArgs[index]}" in
           jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus) break;;
           *) toProcess+=("${nextArgs[index]}"); ((index++));;
         esac
       done
-      (( "${#toProcess[@]}" > 4 )) && error "badCons" "$id or $name" "$name <type> or $name <type> <quality> or $name <type> <quality> <efficiency>"
+
+      # check syntax
       case "${toProcess[0]}" in
-        jpg) jpgQuality="${toProcess[1]}"; jpgEfficiency="${toProcess[2]}";;
-        jxl) jxlQuality="${toProcess[1]}"; jxlEfficiency="${toProcess[2]}";;
-        avif) avifMinQuality="${toProcess[1]}"; avifMaxQuality="${toProcess[2]}"; avifEfficiency="${toProcess[3]}";;
-        h264) h264Quality="${toProcess[1]}"; h264Efficiency="${toProcess[2]}"; h264AudioQuality="${toProcess[3]}";;
-        h265) h265Quality="${toProcess[1]}"; h265Efficiency="${toProcess[2]}"; h265AudioQuality="${toProcess[3]}";;
-        vp9) vp9Quality="${toProcess[1]}"; vp9Efficiency="${toProcess[2]}"; vp9AudioQuality="${toProcess[3]}";;
-        av1) av1Quality="${toProcess[1]}"; av1Efficiency="${toProcess[2]}"; av1AudioQuality="${toProcess[3]}";;
-        vvc) vvcQuality="${toProcess[1]}"; vvcEfficiency="${toProcess[2]}"; vvcAudioQuality="${toProcess[3]}";;
-        mp3) mp3Quality="${toProcess[1]}"; mp3Efficiency="${toProcess[2]}";;
-        opus) opusQuality="${toProcess[1]}"; opusEfficiency="${toProcess[2]}";;
+        avif|h264|h265|vp9|av1|vvc) (( "${#toProcess[@]}" > 4 )) && error 'badOption' "$arg" "${nextArgs[index-1]}" "$id or $name";;
+        jpg|jxl|mp3|opus) (( "${#toProcess[@]}" > 3 )) && error "badCons" "$id or $name" "$name <type> or $name <type> <quality> or $name <type> <quality> <efficiency>";;
       esac
+
+      # associate option values to variables
+      case "${#toProcess[@]}" in
+
+        2|3|4)
+          case "${toProcess[0]}" in
+            jpg) jpgQuality="${toProcess[1]}";;
+            jxl) jxlQuality="${toProcess[1]}";;
+            avif) avifMinQuality="${toProcess[1]}";;
+            h264) h264Quality="${toProcess[1]}";;
+            h265) h265Quality="${toProcess[1]}";;
+            vp9) vp9Quality="${toProcess[1]}";;
+            av1) av1Quality="${toProcess[1]}";;
+            vvc) vvcQuality="${toProcess[1]}";;
+            mp3) mp3Quality="${toProcess[1]}";;
+            opus) opusQuality="${toProcess[1]}";;
+          esac ;;&
+
+        3|4)
+          case "${toProcess[0]}" in
+            jpg) jpgEfficiency="${toProcess[2]}";;
+            jxl) jxlEfficiency="${toProcess[2]}";;
+            avif) avifMaxQuality="${toProcess[2]}";;
+            h264) h264Efficiency="${toProcess[2]}";;
+            h265) h265Efficiency="${toProcess[2]}";;
+            vp9) vp9Efficiency="${toProcess[2]}";;
+            av1) av1Efficiency="${toProcess[2]}";;
+            vvc) vvcEfficiency="${toProcess[2]}";;
+            mp3) mp3Efficiency="${toProcess[2]}";;
+            opus) opusEfficiency="${toProcess[2]}";;
+          esac ;;&
+
+        4)
+          case "${toProcess[0]}" in
+            avif) avifEfficiency="${toProcess[3]}";;
+            h264) h264AudioQuality="${toProcess[3]}";;
+            h265) h265AudioQuality="${toProcess[3]}";;
+            vp9) vp9AudioQuality="${toProcess[3]}";;
+            av1) av1AudioQuality="${toProcess[3]}";;
+            vvc) vvcAudioQuality="${toProcess[3]}";;
+          esac ;;
+
+      esac
+
+      # check for wrong values
+      (( "$jpgQuality" > 1 && "$jpgQuality" < 32 )) || error 'numRange' "$arg" "${toProcess[0]}" "$id or $name" "This value needs to be between 2 and 31"
+      case "$jpgEfficiency" in
+        ''|ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|placebo) :;;
+        *) error 'valueRange' "$arg" "${toProcess[0]}" "$id or $name" "This value needs to be ultrafast, superfast, veryfast, faster, fast, medium, slow, slower or placebo"
+      esac
+
       unset toProcess
       ;;
+
     *) error "badCons" "$id or $name" "$name <type> or $name <type> <quality> or $name <type> <quality> <efficiency>";;
+
   esac
 
 }
