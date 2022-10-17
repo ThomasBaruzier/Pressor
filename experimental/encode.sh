@@ -7,11 +7,11 @@ threads=12
 # VVC
 preset=medium     # efficiency
 qp=30             # 1 pass quality
-bitrate=1.75M      # 2 pass quality
+bitrate=1.75M     # 2 pass quality
 
 # AV1
 cpuUsed=3         # efficiency
-crf=49            # quality
+crf=43            # quality
 
 # Initialisation
 [[ -z "$1" ]] && input='test.mp4' || input="$1"
@@ -83,4 +83,4 @@ run() {
 
 #run compressVVC-1pass "${input%.*}-${maxFps}fps-${preset}-${qp}qp.vvc"
 #run compressVVC-2pass "${input%.*}-${maxFps}fps-${preset}-${bitrate}.vvc"
-#run compressAV1 "${input%.*}-${maxFps}fps-${cpuUsed}cpu-${crf}crf.mkv"
+run compressAV1 "${input%.*}-${maxFps}fps-${cpuUsed}cpu-${crf}crf.mkv"

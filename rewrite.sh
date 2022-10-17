@@ -2,9 +2,10 @@
 
 # TODO
 
-## better case regex
 ## exclude extentions in all concerned options
 ## exige a dot to confirm extention or be considered as error
+## custom ffmpeg parameters arg
+## bit depth parameter
 
 # INITIALISATION
 
@@ -32,11 +33,12 @@ getConfig() {
 
   jpgQuality=''
   jpgEfficiency=''
-  jxlQuality=''
-  jxlEfficiency=''
-  avifMinQuality=''
-  avifMaxQuality=''
-  avifEfficiency=''
+  jxlQuality='80'
+  jxlEfficiency='9'
+  avifMinQuality='0'
+  avifMaxQuality='40'
+  avifEfficiency='0'
+# avifDepth='10'
   h264Quality=''
   h264Efficiency=''
   h264AudioQuality=''
@@ -160,30 +162,30 @@ processArgs() {
   # check for wrong values
   checkCodecRange "$jpgQuality" jpg 2 31
   checkCodecValue "$jpgEfficiency" jpg ffmpegPresets
-  checkCodecRange "$jxlQuality" jxl
-  checkCodecRange "$jxlEfficiency" jxl
-  checkCodecRange "$avifMinQuality" avif
-  checkCodecRange "$avifMaxQuality" avif
-  checkCodecRange "$avifEfficiency" avif
-  checkCodecRange "$h264Quality" h264
-  checkCodecValue "$h264Efficiency" h264
-  checkCodecRange "$h264AudioQuality" h264
-  checkCodecRange "$h265Quality" h265
-  checkCodecValue "$h265Efficiency" h265
-  checkCodecRange "$h265AudioQuality" h265
-  checkCodecRange "$vp9Quality" vp9
-  checkCodecRange "$vp9Efficiency" vp9
-  checkCodecRange "$vp9AudioQuality" vp9
-  checkCodecRange "$av1Quality" av1
-  checkCodecValue "$av1Efficiency" av1
-  checkCodecRange "$av1AudioQuality" av1
-  checkCodecRange "$vvcQuality" vvc
-  checkCodecValue "$vvcEfficiency" vvc
-  checkCodecRange "$vvcAudioQuality" vvc
-  checkCodecRange "$mp3Quality" mp3
-  checkCodecRange "$mp3Efficiency" mp3
-  checkCodecRange "$opusQuality" opus
-  checkCodecRange "$opusEfficiency" opus
+  checkCodecRange "$avifMinQuality" avif 0 63
+  checkCodecRange "$avifMaxQuality" avif 0 63
+  checkCodecRange "$avifEfficiency" avif 0 10
+  checkCodecRange "$jxlQuality" jxl 0 100
+  checkCodecRange "$jxlEfficiency" jxl 1 9
+  checkCodecRange "$h264Quality" h264 0 63
+  checkCodecValue "$h264Efficiency" h264 ffmpegPresets
+  checkCodecRange "$h264AudioQuality" h264 0 9
+  checkCodecRange "$h265Quality" h265 0 63
+  checkCodecValue "$h265Efficiency" h265 ffmpegPresets
+  checkCodecRange "$h265AudioQuality" h265 0 9
+  checkCodecRange "$vp9Quality" vp9 0 63
+  checkCodecRange "$vp9Efficiency" vp9 0 16
+  checkCodecRange "$vp9AudioQuality" vp9 1 512
+  checkCodecRange "$av1Quality" av1 0 63
+  checkCodecRange "$av1Efficiency" av1 0 9
+  checkCodecRange "$av1AudioQuality" av1 1 512
+  checkCodecRange "$vvcQuality" vvc 0 63
+  checkCodecValue "$vvcEfficiency" vvc vvcPresets
+  checkCodecRange "$vvcAudioQuality" vvc 1 512
+  checkCodecRange "$mp3Quality" mp3 0 9
+  checkCodecValue "$mp3Efficiency" mp3 ffmpegPresets
+  checkCodecRange "$opusQuality" opus 1 512
+  checkCodecRange "$opusEfficiency" opus 0 10
 
 }
 
@@ -258,13 +260,14 @@ printHelp() {
 #  echo "        {quality score/10} {compression efficiency/10} {audio quality/10}"
   echo "      > Quality arguments (for expert users) :"
   echo "        • jpg <q:scale> (2-31) <preset> (placebo-veryfast)"
-  echo "        • jxl (planned for future versions)"
   echo "        • avif <min> (0-63) <max> (0-63) <speed> (0-10)"
-  echo "        • h264|h265 <crf> (0-63) <preset> (placebo-veryfast) <aac-bitrate> (256-6)"
-  echo "        • vp9 <crf> (0-63) <cpu-used> (0-16) <opus-bitrate> (256-6)"
-  echo "        • av1 <cq-level> (0-8) <cpu-used> (0-9) <opus-bitrate> (256-6)"
-  echo "        • vvc <preset> (slower-fast) <bitrate|qc> (n|0-63) <opus-bitrate> (256-6)"
-  echo "        • mp3|opus <bitrate> (256-6)"
+  echo "        • jxl <quality> (100-0) <effort> (9-1)"
+  echo "        • h264|h265 <crf> (0-63) <preset> (placebo-veryfast) <mp3-quality> (0-9)"
+  echo "        • vp9 <crf> (0-63) <cpu-used> (0-16) <opus-bitrate> (512-1)"
+  echo "        • av1 <cq> (0-63) <cpu-used> (0-9) <opus-bitrate> (512-1)"
+  echo "        • vvc <qc> (0-63) <preset> (slower-fast) <opus-bitrate> (512-1)"
+  echo "        • mp3 <quality> (0-9) <preset> (placebo-veryfast)"
+  echo "        • opus <bitrate> (512-1) <speed> (10-0)"
   echo "      > Defaults : set in config"
   echo
   echo "  ${optionIDs[i]}, ${optionNames[i]} {all|images|videos} <width>x<height>|<max-length>"; ((i++))
@@ -521,6 +524,11 @@ checkCodecValue() {
       case "$1" in
         ''|ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|placebo) :;;
         *) error 'badValue' "$1" "$2" "$id or $name" "This value needs to be ultrafast, superfast, veryfast, faster, fast, medium, slow, slower or placebo"
+      esac;;
+    vvcPresets)
+      case "$1" in
+        ''|faster|fast|medium|slow|slower) :;;
+        *) error 'badValue' "$1" "$2" "$id or $name" "This value needs to be faster, fast, medium, slow or slower"
       esac;;
   esac
 
