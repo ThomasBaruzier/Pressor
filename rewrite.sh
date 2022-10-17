@@ -157,6 +157,34 @@ processArgs() {
   [[ "$log" != 'false' && "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
   [ "$help" = 'true' ] && printHelp
 
+  # check for wrong values
+  checkCodecRange "$jpgQuality" jpg 2 31
+  checkCodecValue "$jpgEfficiency" jpg ffmpegPresets
+  checkCodecRange "$jxlQuality" jxl
+  checkCodecRange "$jxlEfficiency" jxl
+  checkCodecRange "$avifMinQuality" avif
+  checkCodecRange "$avifMaxQuality" avif
+  checkCodecRange "$avifEfficiency" avif
+  checkCodecRange "$h264Quality" h264
+  checkCodecValue "$h264Efficiency" h264
+  checkCodecRange "$h264AudioQuality" h264
+  checkCodecRange "$h265Quality" h265
+  checkCodecValue "$h265Efficiency" h265
+  checkCodecRange "$h265AudioQuality" h265
+  checkCodecRange "$vp9Quality" vp9
+  checkCodecRange "$vp9Efficiency" vp9
+  checkCodecRange "$vp9AudioQuality" vp9
+  checkCodecRange "$av1Quality" av1
+  checkCodecValue "$av1Efficiency" av1
+  checkCodecRange "$av1AudioQuality" av1
+  checkCodecRange "$vvcQuality" vvc
+  checkCodecValue "$vvcEfficiency" vvc
+  checkCodecRange "$vvcAudioQuality" vvc
+  checkCodecRange "$mp3Quality" mp3
+  checkCodecRange "$mp3Efficiency" mp3
+  checkCodecRange "$opusQuality" opus
+  checkCodecRange "$opusEfficiency" opus
+
 }
 
 optionBuilder() {
@@ -166,7 +194,7 @@ optionBuilder() {
   i=0; while [[ "${options[i-2]}" != '# OPTIONS' ]]; do ((i++)); done
   for ((; i <= "${#options[@]}"; i++)); do
 
-    # give it a name and an ID
+    # give it a name and ang ID
     if [[ "${options[i]}" =~ ^[a-zA-Z]+$ ]]; then
       optionName="--${options[i],,}"
       optionNames+=("$optionName")
@@ -353,9 +381,9 @@ error() {
     'noParam') echo "No parameter provided for argument $2";;
     'badPath') echo "Non-existing path provided : $2";;
     'badCons') echo "Bad option construction for argument $2"; echo "Usage : $3";;
-    'badOption') echo "Wrong option $2 for parameter $3 inside of argument $4";;
-    'numRange') echo "Option $2 is outside of range for parameter $3 inside of argument $4 :"; echo "$5";;
-    'valueRange') echo "Wrong option $2 for parameter $3 inside of argument $4 :"; echo "$5";;
+    'badOption') echo "Wrong option $2 for the parameter $3 inside of argument $4";;
+    'badValue') echo "Wrong option $2 ($3 parameter, argument $4) :"; echo "$5";;
+    '') echo "Wrong option $2 for the parameter $3 inside of argument $4 :"; echo "$5";;
   esac
   echo -e "\e[0mFor help, use $0 --help\n"
   exit
@@ -477,13 +505,6 @@ codecAdvanced() {
 
       esac
 
-      # check for wrong values
-      (( "$jpgQuality" > 1 && "$jpgQuality" < 32 )) || error 'numRange' "$arg" "${toProcess[0]}" "$id or $name" "This value needs to be between 2 and 31"
-      case "$jpgEfficiency" in
-        ''|ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|placebo) :;;
-        *) error 'valueRange' "$arg" "${toProcess[0]}" "$id or $name" "This value needs to be ultrafast, superfast, veryfast, faster, fast, medium, slow, slower or placebo"
-      esac
-
       unset toProcess
       ;;
 
@@ -493,6 +514,26 @@ codecAdvanced() {
 
 }
 
+checkCodecValue() {
+
+  case "$3" in
+    ffmpegPresets)
+      case "$1" in
+        ''|ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|placebo) :;;
+        *) error 'badValue' "$1" "$2" "$id or $name" "This value needs to be ultrafast, superfast, veryfast, faster, fast, medium, slow, slower or placebo"
+      esac;;
+  esac
+
+}
+
+checkCodecRange() {
+
+  if [[ "$1" =~ [a-zA-Z0-9] ]]; then
+   (( "$1" > "$3"-1 && "$1" < "$4"+1 )) \
+   || error 'badValue' "$1" "$2" "$id or $name" "This value needs to be between $3 and $4"
+  fi
+
+}
 
 # MAIN PROGRAM
 
