@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# TODO
-
-## exclude extentions in all concerned options
-## exige a dot to confirm extention or be considered as error
-## custom ffmpeg parameters arg
-## bit depth parameter
-
 # INITIALISATION
 
 getConfig() {
@@ -33,26 +26,33 @@ getConfig() {
 
   jpgQuality=''
   jpgEfficiency=''
-  jxlQuality='80'
-  jxlEfficiency='9'
+  jpgDepth=''
   avifMinQuality='0'
   avifMaxQuality='40'
   avifEfficiency='0'
-# avifDepth='10'
-  h264Quality=''
-  h264Efficiency=''
-  h264AudioQuality=''
-  h265Quality=''
-  h265Efficiency=''
-  h265AudioQuality=''
+  avifDepth=''
+  jxlQuality='80'
+  jxlEfficiency='9'
+  jxlDepth=''
+  x264Quality=''
+  x264Efficiency=''
+  x264Depth=''
+  x264AudioQuality=''
+  x265Quality=''
+  x265Efficiency=''
+  x265Depth=''
+  x265AudioQuality=''
   vp9Quality=''
   vp9Efficiency=''
+  vp9Depth=''
   vp9AudioQuality=''
   av1Quality=''
   av1Efficiency=''
+  av1Depth=''
   av1AudioQuality=''
   vvcQuality=''
   vvcEfficiency=''
+  vvcDepth=''
   vvcAudioQuality=''
   mp3Quality=''
   mp3Efficiency=''
@@ -65,6 +65,7 @@ getConfig() {
   cropVideoValues=''
 
   threads='all'
+  ffmpegArgs=''
 
   # output options
 
@@ -87,8 +88,9 @@ processArgs() {
 
   # perform actions that need to be done before agument scanning
   args=("$@")
+  [[ -z "$args" ]] && error 'noArg'
   for ((i=0; i < "${#args[@]}"; i++)); do
-    args[i]="${args[i]/\~/$HOME}"
+    args[i]="${args[i]//\~/$HOME}"
     [[ "${args[i]}" = '-h' || "${args[i]}" = '--help' ]] && printHelp
     [[ "${args[i]}" = '-i' || "${args[i]}" = '--include' ]] \
     && videos='false' && images='false' && audios='false' && unset includeExtentions
@@ -145,47 +147,58 @@ processArgs() {
     unset match
   done
 
-  # activate options / warn
-  [ "${#paths[@]}" = 0 ] && warn 'noArg' "'${inputs[@]}' as input(s) and '$output' as output"
-  for i in "${inputs[@]}"; do
-    if [[ "$i" =~ '/' ]]; then
-      [[ -d "$i" || -f "$i" ]] || error 'badPath' "$i"
-    fi
-  done
-  [[ -n "${cropImageValues[@]}" && -z "${cropVideoValues[@]}" ]] && cropVideoValues="${cropImageValues[@]}"
-  [[ -z "${cropImageValues[@]}" && -n "${cropVideoValues[@]}" ]] && cropImageValues=("${cropVideoValues[@]}")
-  [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" || [[ ! -d "$output" ]] && warn 'createPath' "$output"
-  [ "$verbose" = 'true' ] && printVerbose
-  [[ "$log" != 'false' && "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
-  [ "$help" = 'true' ] && printHelp
-
   # check for wrong values
   checkCodecRange "$jpgQuality" jpg 2 31
   checkCodecValue "$jpgEfficiency" jpg ffmpegPresets
+  checkCodecValue "$jpgDepth" jpg depth
   checkCodecRange "$avifMinQuality" avif 0 63
   checkCodecRange "$avifMaxQuality" avif 0 63
   checkCodecRange "$avifEfficiency" avif 0 10
+  checkCodecValue "$avifDepth" avif depth
   checkCodecRange "$jxlQuality" jxl 0 100
   checkCodecRange "$jxlEfficiency" jxl 1 9
-  checkCodecRange "$h264Quality" h264 0 63
-  checkCodecValue "$h264Efficiency" h264 ffmpegPresets
-  checkCodecRange "$h264AudioQuality" h264 0 9
-  checkCodecRange "$h265Quality" h265 0 63
-  checkCodecValue "$h265Efficiency" h265 ffmpegPresets
-  checkCodecRange "$h265AudioQuality" h265 0 9
+  checkCodecValue "$jxlDepth" jxl depth
+  checkCodecRange "$x264Quality" x264 0 63
+  checkCodecValue "$x264Efficiency" x264 ffmpegPresets
+  checkCodecValue "$x264Depth" x264 depth
+  checkCodecRange "$x264AudioQuality" x264 0 9
+  checkCodecRange "$x265Quality" x265 0 63
+  checkCodecValue "$x265Efficiency" x265 ffmpegPresets
+  checkCodecValue "$x265Depth" x265 depth
+  checkCodecRange "$x265AudioQuality" x265 0 9
   checkCodecRange "$vp9Quality" vp9 0 63
   checkCodecRange "$vp9Efficiency" vp9 0 16
+  checkCodecValue "$vp9Depth" vp9 depth
   checkCodecRange "$vp9AudioQuality" vp9 1 512
   checkCodecRange "$av1Quality" av1 0 63
   checkCodecRange "$av1Efficiency" av1 0 9
+  checkCodecValue "$av1Depth" av1 depth
   checkCodecRange "$av1AudioQuality" av1 1 512
   checkCodecRange "$vvcQuality" vvc 0 63
   checkCodecValue "$vvcEfficiency" vvc vvcPresets
+  checkCodecValue "$vvcDepth" vvc depth
   checkCodecRange "$vvcAudioQuality" vvc 1 512
   checkCodecRange "$mp3Quality" mp3 0 9
   checkCodecValue "$mp3Efficiency" mp3 ffmpegPresets
   checkCodecRange "$opusQuality" opus 1 512
   checkCodecRange "$opusEfficiency" opus 0 10
+
+  # check options
+  [ "${#paths[@]}" = 0 ] && warn 'noIO' "'${inputs[@]}' as input(s) and '$output' as output"
+  for i in "${inputs[@]}"; do
+    if [[ "$i" =~ '/' ]]; then
+      [[ -d "$i" || -f "$i" ]] || error 'badPath' "$i"
+    fi
+  done
+  [ "$threads" = 'all' ] && threadsOption 'all'
+  [[ -n "${cropImageValues[@]}" && -z "${cropVideoValues[@]}" ]] && cropVideoValues="${cropImageValues[@]}"
+  [[ -z "${cropImageValues[@]}" && -n "${cropVideoValues[@]}" ]] && cropImageValues=("${cropVideoValues[@]}")
+  [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" || [[ ! -d "$output" ]] && warn 'createPath' "$output"
+
+  # activate options
+  [ "$verbose" = 'true' ] && printVerbose
+  [[ "$log" != 'false' && "$log" != '' ]] && printVerbose | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" >> "$log"
+  [ "$help" = 'true' ] && printHelp
 
 }
 
@@ -197,8 +210,9 @@ optionBuilder() {
   for ((; i <= "${#options[@]}"; i++)); do
 
     # give it a name and ang ID
-    if [[ "${options[i]}" =~ ^[a-zA-Z]+$ ]]; then
+    if [[ "${options[i]// /-}" =~ ^[A-Z-]+$ ]]; then
       optionName="--${options[i],,}"
+      optionName="${optionName// /-}"
       optionNames+=("$optionName")
       optionID="${optionName:1:2}"
 
@@ -214,7 +228,7 @@ optionBuilder() {
       done
       optionIDs+=("$optionID")
 
-    # differenciate options' tasks from cases
+    # differenciate option tasks from cases
     elif [[ "${options[i]}" =~ ';;'$ ]]; then
       optionCases+="${options[i]} "
     elif [[ -n "${options[i]}" ]]; then
@@ -223,8 +237,10 @@ optionBuilder() {
     # build and fire the function
     elif [[ -n "$optionName" ]]; then
       source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); name='"$optionName"'; id='"$optionID"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do arg="${optionArgs[index]}"; case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
+#      echo "${optionName:2}Option"'() { optionArgs=(${*}); name='"$optionName"'; id='"$optionID"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do arg="${optionArgs[index]}"; case "${optionArgs[index]}" in '"$optionCases"' esac; done; }'
       unset optionName optionID optionCases optionTasks index
     fi
+
   done
 
 }
@@ -254,7 +270,7 @@ printHelp() {
   echo
   echo "Encoding options :"
   echo
-  echo "  ${optionIDs[i]}, ${optionNames[i]} {jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus} {quality}"; ((i++))
+  echo "  ${optionIDs[i]}, ${optionNames[i]} {jpg|jxl|avif|x264|x265|vp9|av1|vvc|mp3|opus} {quality}"; ((i++))
   echo "      > Choose encoding codecs and quality parameters"
 #  echo "      > Quality arguments (for common users) :"
 #  echo "        {quality score/10} {compression efficiency/10} {audio quality/10}"
@@ -262,7 +278,7 @@ printHelp() {
   echo "        • jpg <q:scale> (2-31) <preset> (placebo-veryfast)"
   echo "        • avif <min> (0-63) <max> (0-63) <speed> (0-10)"
   echo "        • jxl <quality> (100-0) <effort> (9-1)"
-  echo "        • h264|h265 <crf> (0-63) <preset> (placebo-veryfast) <mp3-quality> (0-9)"
+  echo "        • x264|x265 <crf> (0-63) <preset> (placebo-veryfast) <mp3-quality> (0-9)"
   echo "        • vp9 <crf> (0-63) <cpu-used> (0-16) <opus-bitrate> (512-1)"
   echo "        • av1 <cq> (0-63) <cpu-used> (0-9) <opus-bitrate> (512-1)"
   echo "        • vvc <qc> (0-63) <preset> (slower-fast) <opus-bitrate> (512-1)"
@@ -277,6 +293,11 @@ printHelp() {
   echo "  ${optionIDs[i]}, ${optionNames[i]} <all|number-of-threads>"; ((i++))
   echo "      > Number of threads to use"
   echo "      > Default : all"
+  echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]} <parameters/options>"; ((i++))
+  echo "      > Use custom ffmpeg arguments when applicable"
+  echo "      > Note : you will need to escape all the single/double quotes"
+  echo "      > Default : set in config"
   echo
   echo "Output options :"
   echo
@@ -323,18 +344,18 @@ printVerbose() {
   echo -en "> Video codec : "; colorise "$videoCodec"
   echo -en "> Audio codec : "; colorise "$audioCodec"
   echo
-  echo     "Codec | Quality    | Efficiency | Audio Quality"
-  echo     "——————|————————————|————————————|——————————————"
-  echo -en "JPG   | "; colorise 'tab' "$jpgQuality"; colorise 'tab' "$jpgEfficiency"; echo
-  echo -en "JXL   | "; colorise 'tab' "$jxlQuality"; colorise 'tab' "$jxlEfficiency"; echo
-  echo -en "AVIF  | "; colorise 'tab' "$avifQuality"; colorise 'tab' "$avifEfficiency"; echo
-  echo -en "H264  | "; colorise 'tab' "$h264Quality"; colorise 'tab' "$h264Efficiency"; colorise "$h264AudioQuality"
-  echo -en "H265  | "; colorise 'tab' "$h265Quality"; colorise 'tab' "$h265Efficiency"; colorise "$h265AudioQuality"
-  echo -en "VP9   | "; colorise 'tab' "$vp9Quality"; colorise 'tab' "$vp9Efficiency"; colorise "$vp9AudioQuality"
-  echo -en "AV1   | "; colorise 'tab' "$av1Quality"; colorise 'tab' "$av1Efficiency"; colorise "$av1AudioQuality"
-  echo -en "VVC   | "; colorise 'tab' "$vvcQuality"; colorise 'tab' "$vvcEfficiency"; colorise "$vvcAudioQuality"
-  echo -en "MP3   | "; colorise 'tab' "$mp3Quality"; colorise 'tab' "$mp3Efficiency"; echo
-  echo -en "OPUS  | "; colorise 'tab' "$opusQuality"; colorise 'tab' "$opusEfficiency"; echo
+  echo     "Codec │ Quality    │ Efficiency │ Bit Depth  │ Audio Quality"
+  echo     "──────┼────────────┼────────────┼────────────┼──────────────"
+  echo -en "JPG   │ "; colorise 'tab' "$jpgQuality"; colorise 'tab' "$jpgEfficiency"; colorise 'tab' "$jpgDepth"; echo
+  echo -en "JXL   │ "; colorise 'tab' "$jxlQuality"; colorise 'tab' "$jxlEfficiency"; colorise 'tab' "$jxlDepth"; echo
+  echo -en "AVIF  │ "; colorise 'tab' "$avifQuality"; colorise 'tab' "$avifEfficiency"; colorise 'tab' "$avifDepth"; echo
+  echo -en "X264  │ "; colorise 'tab' "$x264Quality"; colorise 'tab' "$x264Efficiency"; colorise 'tab' "$x264Depth"; colorise "$x264AudioQuality"
+  echo -en "X265  │ "; colorise 'tab' "$x265Quality"; colorise 'tab' "$x265Efficiency"; colorise 'tab' "$x265Depth"; colorise "$x265AudioQuality"
+  echo -en "VP9   │ "; colorise 'tab' "$vp9Quality"; colorise 'tab' "$vp9Efficiency"; colorise 'tab' "$vp9Depth"; colorise "$vp9AudioQuality"
+  echo -en "AV1   │ "; colorise 'tab' "$av1Quality"; colorise 'tab' "$av1Efficiency"; colorise 'tab' "$av1Depth"; colorise "$av1AudioQuality"
+  echo -en "VVC   │ "; colorise 'tab' "$vvcQuality"; colorise 'tab' "$vvcEfficiency"; colorise 'tab' "$vvcDepth"; colorise "$vvcAudioQuality"
+  echo -en "MP3   │ "; colorise 'tab' "$mp3Quality"; colorise 'tab' "$mp3Efficiency"; echo "           │"
+  echo -en "OPUS  │ "; colorise 'tab' "$opusQuality"; colorise 'tab' "$opusEfficiency"; echo "           │"
   echo
   echo -en "> Crop images : "; colorise "$cropImages"
   echo -en "> Crop videos : "; colorise "$cropVideos"
@@ -342,13 +363,14 @@ printVerbose() {
   echo -en "> Crop video value(s) : "; colorise "${cropVideoValues[@]}"
   echo
   echo -en "> Threads : "; colorise "$threads"
+  echo -en "> Custom ffmpeg arguments : "; colorise "$ffmpegArgs"
   echo
   echo -e "\e[34mOutput options :\e[0m"
   echo
   echo -en "> Rename images : "; colorise "$renameImages"
   echo -en "> Rename videos : "; colorise "$renameVideos"
   echo -en "> Rename audios : "; colorise "$renameAudios"
-  echo -en "> Rename extentions : "; colorise "$renameExtentions"
+  echo -en "> Rename extentions : "; colorise "${renameExtentions:1}"
   echo
   echo -en "> Tree : "; colorise "$tree"
   echo
@@ -367,8 +389,8 @@ colorise() {
     'false') echo -e "\e[31mfalse\e[0m";;
     '') echo -e "\e[35mundefined\e[0m";;
     'tab')
-      [[ -z "$2" ]] && echo -en "\e[35mundefined\e[0m  | "
-      [[ -n "$2" ]] && printf '\e[36m%-11s\e[0m| ' "$2";;
+      [[ -z "$2" ]] && echo -en "\e[35mundefined\e[0m  │ "
+      [[ -n "$2" ]] && printf '\e[36m%-11s\e[0m│ ' "$2";;
     *) echo -e "\e[36m$@\e[0m";;
   esac
 
@@ -399,6 +421,7 @@ warn() {
   echo -en '\e[33m\nWARNING : '
   case "$1" in
     'noArg') echo "No arguments provided : Using $2";;
+    'noIO') echo "No input(s)/output provided : Using $2";;
     'noParam') echo "No parameter provided for argument $2 : Using $3";;
     'badParam') echo "Wrong or unknown parameter provided for argument $2";;
     'createPath') echo "Not a valid path : $2. Creating it.";;
@@ -448,33 +471,34 @@ cropAdvanced() {
 codecAdvanced() {
 
   case "${nextArgs[0]}" in
-    jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus)
+    jpg|jxl|avif|x264|x265|vp9|av1|vvc|mp3|opus)
       toProcess+=("${nextArgs[index-1]}")
 
       # scan next options
       while [[ -n "${nextArgs[index]}" ]]; do
         case "${nextArgs[index]}" in
-          jpg|jxl|avif|h264|h265|vp9|av1|vvc|mp3|opus) break;;
+          jpg|jxl|avif|x264|x265|vp9|av1|vvc|mp3|opus) break;;
           *) toProcess+=("${nextArgs[index]}"); ((index++));;
         esac
       done
 
       # check syntax
       case "${toProcess[0]}" in
-        avif|h264|h265|vp9|av1|vvc) (( "${#toProcess[@]}" > 4 )) && error 'badOption' "$arg" "${nextArgs[index-1]}" "$id or $name";;
-        jpg|jxl|mp3|opus) (( "${#toProcess[@]}" > 3 )) && error "badCons" "$id or $name" "$name <type> or $name <type> <quality> or $name <type> <quality> <efficiency>";;
+        avif|x264|x265|vp9|av1|vvc) (( "${#toProcess[@]}" > 5 )) && error "badCons" "$id or $name" "$name <type> <quality> <efficiency> <depth> <audio-bitrate>";;
+        jpg|jxl) (( "${#toProcess[@]}" > 4 )) && error "badCons" "$id or $name" "$name <type> <quality> <efficiency> <depth>";;
+        mp3|opus) (( "${#toProcess[@]}" > 3 )) && error "badCons" "$id or $name" "$name <type> <quality> <efficiency>";;
       esac
 
       # associate option values to variables
       case "${#toProcess[@]}" in
 
-        2|3|4)
+        2|3|4|5)
           case "${toProcess[0]}" in
             jpg) jpgQuality="${toProcess[1]}";;
             jxl) jxlQuality="${toProcess[1]}";;
             avif) avifMinQuality="${toProcess[1]}";;
-            h264) h264Quality="${toProcess[1]}";;
-            h265) h265Quality="${toProcess[1]}";;
+            x264) x264Quality="${toProcess[1]}";;
+            x265) x265Quality="${toProcess[1]}";;
             vp9) vp9Quality="${toProcess[1]}";;
             av1) av1Quality="${toProcess[1]}";;
             vvc) vvcQuality="${toProcess[1]}";;
@@ -482,13 +506,13 @@ codecAdvanced() {
             opus) opusQuality="${toProcess[1]}";;
           esac ;;&
 
-        3|4)
+        3|4|5)
           case "${toProcess[0]}" in
             jpg) jpgEfficiency="${toProcess[2]}";;
             jxl) jxlEfficiency="${toProcess[2]}";;
             avif) avifMaxQuality="${toProcess[2]}";;
-            h264) h264Efficiency="${toProcess[2]}";;
-            h265) h265Efficiency="${toProcess[2]}";;
+            x264) x264Efficiency="${toProcess[2]}";;
+            x265) x265Efficiency="${toProcess[2]}";;
             vp9) vp9Efficiency="${toProcess[2]}";;
             av1) av1Efficiency="${toProcess[2]}";;
             vvc) vvcEfficiency="${toProcess[2]}";;
@@ -496,14 +520,26 @@ codecAdvanced() {
             opus) opusEfficiency="${toProcess[2]}";;
           esac ;;&
 
-        4)
+        4|5)
           case "${toProcess[0]}" in
+            jpg) jpgDepth="${toProcess[3]}";;
+            jxl) jxlDepth="${toProcess[3]}";;
             avif) avifEfficiency="${toProcess[3]}";;
-            h264) h264AudioQuality="${toProcess[3]}";;
-            h265) h265AudioQuality="${toProcess[3]}";;
-            vp9) vp9AudioQuality="${toProcess[3]}";;
-            av1) av1AudioQuality="${toProcess[3]}";;
-            vvc) vvcAudioQuality="${toProcess[3]}";;
+            x264) x264Depth="${toProcess[3]}";;
+            x265) x265Depth="${toProcess[3]}";;
+            vp9) vp9Depth="${toProcess[3]}";;
+            av1) av1Depth="${toProcess[3]}";;
+            vvc) vvcDepth="${toProcess[3]}";;
+          esac ;;&
+
+        5)
+          case "${toProcess[0]}" in
+            avif) avifDepth="${toProcess[4]}";;
+            x264) x264AudioQuality="${toProcess[4]}";;
+            x265) x265AudioQuality="${toProcess[4]}";;
+            vp9) vp9AudioQuality="${toProcess[4]}";;
+            av1) av1AudioQuality="${toProcess[4]}";;
+            vvc) vvcAudioQuality="${toProcess[4]}";;
           esac ;;
 
       esac
@@ -516,6 +552,8 @@ codecAdvanced() {
   esac
 
 }
+
+# UTILITIES FOR OPTIONS
 
 checkCodecValue() {
 
@@ -530,6 +568,11 @@ checkCodecValue() {
         ''|faster|fast|medium|slow|slower) :;;
         *) error 'badValue' "$1" "$2" "$id or $name" "This value needs to be faster, fast, medium, slow or slower"
       esac;;
+    depth)
+      case "$1" in
+        ''|8|10|12) :;;
+        *) error 'badValue' "$1" "$2" "$id or $name" "This value needs to be 8, 10 or 12"
+      esac;;
   esac
 
 }
@@ -537,9 +580,18 @@ checkCodecValue() {
 checkCodecRange() {
 
   if [[ "$1" =~ [a-zA-Z0-9] ]]; then
-   (( "$1" > "$3"-1 && "$1" < "$4"+1 )) \
-   || error 'badValue' "$1" "$2" "$id or $name" "This value needs to be between $3 and $4"
+    [[ "$1" =~ [a-zA-Z] ]] || (( "$1" <= "$3"-1 || "$1" >= "$4"+1 )) && error 'badValue' "$1" "$2" "$id or $name" "This value needs to be between $3 and $4"
   fi
+
+}
+
+addFFmpegArg() {
+
+  ffmpegArgs+="-"
+  while [[ "${nextArgs[index]:0:1}" != '-' && -n "${nextArgs[index]}" ]]; do
+    ffmpegArgs+="${nextArgs[index]} "
+    ((index++))
+  done
 
 }
 
@@ -558,7 +610,8 @@ movie*|video*|vid*) videos='true';;
 music*|audio*) audios='true';;
 default|all|everything) images='true'; videos='true'; audios='true';;
 none|nothing) images='false'; videos='false'; audios='false';;
-*) extention="${arg/\./}"; extention="${extention,,}"; includeExtentions+=" $extention"; excludeExtentions="${excludeExtentions// $extention}";;
+\.*) extention="${arg/\./}"; extention="${extention,,}"; includeExtentions+=" $extention"; excludeExtentions="${excludeExtentions// $extention}";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 EXCLUDE
 image*|photo*|picture*|pic*) images='false';;
@@ -566,7 +619,8 @@ movie*|video*|vid*) videos='false';;
 music*|audio*) audios='false';;
 default|all|everything) images='false'; videos='false'; audios='false';;
 none|nothing) images='true'; videos='true'; audios='true';;
-*) extention="${arg/\./}"; extention="${extention,,}"; excludeExtentions+=" $extention"; includeExtentions="${includeExtentions// $extention}";;
+\.*) extention="${arg/\./}"; extention="${extention,,}"; excludeExtentions+=" $extention"; includeExtentions="${includeExtentions// $extention}";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 RECURSIVE
 default|y|yes|'true') recursive='true';;
@@ -580,7 +634,7 @@ n|no|'false') overwrite='false';;
 
 CODEC
 jpg|jxl|avif) imageCodec="$arg";;
-h264|h265|vp9|av1|vvc) videoCodec="$arg";;
+x264|x265|vp9|av1|vvc) videoCodec="$arg";;
 mp3|opus) audioCodec="$arg";;
 default) error 'noParam' "$id or $name" "$arg";;
 *) codecAdvanced;;
@@ -600,13 +654,18 @@ all|max|everything) threads="$availableThreads";;
 default) warn 'noParam' "$id or $name" "$arg" "$availableThreads threads" && threads="$availableThreads";;
 *) error 'badParam' "$id or $name" "$arg";;
 
+FFMPEG ARGS
+default) error 'noParam' "$id or $name";;
+*) addFFmpegArg;;
+
 RENAME
 image*|photo*|picture*|pic*) renameImages='true';;
 movie*|video*|vid*) renameVideos='true';;
 music*|audio*) renameAudios='true';;
 default|all|everything) renameImages='true'; renameVideos='true'; renameAudios='true';;
 none|nothing) renameImages='false'; renameVideos='false'; renameAudios='false';;
-*) extention="${arg/\./}"; extention="${extention,,}"; renameExtentions="${renameExtentions// $extention}"; renameExtentions+=" $extention";;
+\.*) extention="${arg/\./}"; extention="${extention,,}"; renameExtentions="${renameExtentions// $extention}"; renameExtentions+=" $extention";;
+*) error 'badParam' "$id or $name" "$arg";;
 
 TREE
 default|y|yes|'true') tree='true';;
