@@ -121,6 +121,18 @@ processArgs() {
     fi
   fi
 
+  # check input/ouput
+  [ "${#paths[@]}" = 0 ] && warn 'noIO' "'${inputs[@]}' as input(s) and '$output' as output"
+  for ((i=0; i < "${#inputs[@]}"; i++)); do
+    if [[ "${inputs[i]}" =~ '/' ]]; then
+      [[ -d "${inputs[i]}" || -f "${inputs[i]}" ]] || error 'badPath' "${inputs[i]}"
+    fi
+    inputs[i]=$(readlink -f "${inputs[i]}")
+  done
+  [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" \
+  || [[ ! -d "$output" ]] && warn 'createPath' "$output"
+  output=$(readlink -f "$output")
+
   # loop through the next arguments
   for ((; i < "${#args[@]}"; i++)); do
     for ((j=0; j < "${#optionNames[@]}"; j++)); do
@@ -184,16 +196,9 @@ processArgs() {
   checkCodecRange "$opusEfficiency" opus 0 10
 
   # check options
-  [ "${#paths[@]}" = 0 ] && warn 'noIO' "'${inputs[@]}' as input(s) and '$output' as output"
-  for i in "${inputs[@]}"; do
-    if [[ "$i" =~ '/' ]]; then
-      [[ -d "$i" || -f "$i" ]] || error 'badPath' "$i"
-    fi
-  done
   [ "$threads" = 'all' ] && threadsOption 'all'
   [[ -n "${cropImageValues[@]}" && -z "${cropVideoValues[@]}" ]] && cropVideoValues="${cropImageValues[@]}"
   [[ -z "${cropImageValues[@]}" && -n "${cropVideoValues[@]}" ]] && cropImageValues=("${cropVideoValues[@]}")
-  [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" || [[ ! -d "$output" ]] && warn 'createPath' "$output"
 
   # activate options
   [ "$verbose" = 'true' ] && printVerbose
@@ -237,7 +242,6 @@ optionBuilder() {
     # build and fire the function
     elif [[ -n "$optionName" ]]; then
       source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); name='"$optionName"'; id='"$optionID"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do arg="${optionArgs[index]}"; case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
-#      echo "${optionName:2}Option"'() { optionArgs=(${*}); name='"$optionName"'; id='"$optionID"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do arg="${optionArgs[index]}"; case "${optionArgs[index]}" in '"$optionCases"' esac; done; }'
       unset optionName optionID optionCases optionTasks index
     fi
 
@@ -426,6 +430,7 @@ warn() {
     'badParam') echo "Wrong or unknown parameter provided for argument $2";;
     'createPath') echo "Not a valid path : $2. Creating it.";;
     'maxThreads') echo "Using $2 threads instead of $3 (it's the maximum available)";;
+    'noMedia') echo "No $2 found";;
   esac
   echo -en '\e[0m'
 
@@ -595,11 +600,59 @@ addFFmpegArg() {
 
 }
 
+# COMPRESSION
+
+checkFiles() {
+
+  echo
+  [ "$recursive" = 'true' ] && shopt -s globstar && stars='**' || stars='*'
+  for i in "${inputs[@]}"; do
+    echo "Searching medias inside '$i'..."
+    [[ "${i: -1}" != '/' && -d "$i" ]] && i+='/'
+    inputList+=$(file -i "$i"$stars)
+  done
+  echo
+
+  if [ "$images" = 'true' ]; then
+    readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
+    readarray -t imageList <<< $(printf "%s\n" "${imageList[@]}" | sort -u)
+    [ -n "$imagelist" ] && echo "> Found ${#imageList[@]} images" || echo "> Found no images"
+    [ "$verbose" = true ] && echo -e '\e[36m' && printf "%s\n" "${imageList[@]}" && echo -e '\e[0m'
+  fi
+
+  if [ "$videos" = 'true' ]; then
+    readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
+    readarray -t videoList <<< $(printf "%s\n" "${videoList[@]}" | sort -u)
+    [ -n "$videolist" ] && echo "> Found ${#videoList[@]} videos" || echo "> Found no videos"
+    [ "$verbose" = true ] && echo -e '\e[36m' && printf "%s\n" "${videoList[@]}" && echo -e '\e[0m'
+  fi
+
+  if [ "$audios" = 'true' ]; then
+    readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
+    readarray -t audioList <<< $(printf "%s\n" "${audioList[@]}" | sort -u)
+    [ -n "$audiolist" ] && echo "> Found ${#audioList[@]} audios" || echo "> Found no audio files"
+    [ "$verbose" = true ] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -e '\e[0m'
+  fi
+
+  [ "$verbose" != true ] && echo
+
+}
+
+compress() {
+
+  read -p "Start compression ? (y/n) (default=y) : " answer
+  [[ "$answer" = 'n' || "$answer" = 'no' ]] && echo -e "Exiting...\n" && exit
+  echo "Starting compression..."
+
+}
+
 # MAIN PROGRAM
 
 optionBuilder
 getConfig
 processArgs "$@"
+checkFiles
+compress
 echo; exit
 
 # OPTIONS
