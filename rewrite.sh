@@ -614,34 +614,32 @@ checkFiles() {
   echo
 
   if [ "$images" = 'true' ]; then
-    readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
-    readarray -t imageList <<< $(printf "%s\n" "${imageList[@]}" | sort -u)
-    [ -n "$imagelist" ] && echo "> Found ${#imageList[@]} images" || echo "> Found no images"
-    [ "$verbose" = true ] && echo -e '\e[36m' && printf "%s\n" "${imageList[@]}" && echo -e '\e[0m'
+    readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList" | sort -u | tail -n+2)
+    [ -n "$imageList" ] && echo "> Found ${#imageList[@]} images" || echo "> Found no images"
+    [[ -n "$imageList" && "$verbose" = true ]] \
+    && echo -e '\e[36m' && printf "%s\n" "${imageList[@]}" && echo -e '\e[0m'
   fi
 
   if [ "$videos" = 'true' ]; then
-    readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
-    readarray -t videoList <<< $(printf "%s\n" "${videoList[@]}" | sort -u)
-    [ -n "$videolist" ] && echo "> Found ${#videoList[@]} videos" || echo "> Found no videos"
-    [ "$verbose" = true ] && echo -e '\e[36m' && printf "%s\n" "${videoList[@]}" && echo -e '\e[0m'
+    readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList" | sort -u)
+    [ -n "$videoList" ] && echo "> Found ${#videoList[@]} videos" || echo "> Found no videos"
+    [[ -n "$videoList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${videoList[@]}" && echo -e '\e[0m'
   fi
 
   if [ "$audios" = 'true' ]; then
-    readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
-    readarray -t audioList <<< $(printf "%s\n" "${audioList[@]}" | sort -u)
-    [ -n "$audiolist" ] && echo "> Found ${#audioList[@]} audios" || echo "> Found no audio files"
-    [ "$verbose" = true ] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -e '\e[0m'
+    readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList" | sort -u | tail -n+2)
+    [ -n "$audioList" ] && echo "> Found ${#audioList[@]} audios" || echo "> Found no audio files"
+    [[ -n "$audioList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -e '\e[0m'
   fi
 
-  [ "$verbose" != true ] && echo
+  echo
 
 }
 
 compress() {
 
-  read -p "Start compression ? (y/n) (default=y) : " answer
-  [[ "$answer" = 'n' || "$answer" = 'no' ]] && echo -e "Exiting...\n" && exit
+#  read -p "Start compression ? (y/n) (default=y) : " answer
+#  [[ "$answer" = 'n' || "$answer" = 'no' ]] && echo -e "Exiting...\n" && exit
   echo "Starting compression..."
 
 }
