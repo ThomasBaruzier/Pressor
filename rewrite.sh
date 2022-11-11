@@ -607,34 +607,31 @@ addFFmpegArg() {
 
 checkFiles() {
 
-  imageExtentions=(jpg jpeg png tiff tif raw bmp heif heic avif jxl)
-  videoExtentions=(mp4 mkv m4v f4v f4a m4b m4r f4b mov wmv wma webm flv avi vvc 266)
-  audioExtentions=(mp3 aac flac aiff alac m4a cda wav opus ogg)
-  includeExtentions=($includeExtentions)
-  excludeExtentions=($excludeExtentions)
-
-  for i in "${includeExtentions[@]}"; do
-    case "$i" in
-       [[ ${imageExtentions[@]} =~ '' ]]
-        echo "Including extention $i as image";;
-      mp4|mkv|m4v|f4v|f4a|m4b|m4r|f4b|mov|wmv|wma|webm|flv|avi|vvc|266)
-        echo "Including extention $i as video";;
-      mp3|aac|flac|aiff|alac|m4a|cda|wav|opus|ogg)
-        echo "Including extention $i as audio";;
-      *) warn "Unknown extention : $i";;
-    esac
-  done
-
-  exit
   # build file list
   for i in "${inputs[@]}"; do
     inputList+=$(find "$i" -type f 2>/dev/null)
   done
 
   # sort files by type
-  [ "$images" = 'true' ] && readarray -t imageList <<< $(grep -i -e '\.jpg$' -e '\.jpeg$' -e '\.png$' -e '\.tiff$' -e '\.tif$' -e '\.raw$' -e '\.bmp$' -e '\.heif$' -e '\.heic$' -e '\.avif$' -e '\.jxl$' <<< "$inputList")
-  [ "$videos" = 'true' ] && readarray -t videoList <<< $(grep -i -e '\.mp4$' -e '\.mkv$' -e '\.m4v$' -e '\.f4v$' -e '\.f4a$' -e '\.m4b$' -e '\.m4r$' -e '\.f4b$' -e '\.mov$' -e '\.wmv$' -e '\.wma$' -e '\.webm$' -e '\.flv$' -e '\.avi$' -e '\.vvc$' -e '\.266$' <<< "$inputList")
-  [ "$audios" = 'true' ] && readarray -t audioList <<< $(grep -i -e '\.mp3$' -e '\.aac$' -e '\.flac$' -e '\.aiff$' -e '\.alac$' -e '\.m4a$' -e '\.cda$' -e '\.wav$' -e '\.opus$' -e '\.ogg$' <<< "$inputList")
+#  [ "$images" = 'true' ] && readarray -t imageList <<< $(grep -i -e '\.jpg$' -e '\.jpeg$' -e '\.png$' -e '\.tiff$' -e '\.tif$' -e '\.raw$' -e '\.bmp$' -e '\.heif$' -e '\.heic$' -e '\.avif$' -e '\.jxl$' <<< "$inputList")
+#  [ "$videos" = 'true' ] && readarray -t videoList <<< $(grep -i -e '\.mp4$' -e '\.mkv$' -e '\.m4v$' -e '\.f4v$' -e '\.f4a$' -e '\.m4b$' -e '\.m4r$' -e '\.f4b$' -e '\.mov$' -e '\.wmv$' -e '\.wma$' -e '\.webm$' -e '\.flv$' -e '\.avi$' -e '\.vvc$' -e '\.266$' <<< "$inputList")
+#  [ "$audios" = 'true' ] && readarray -t audioList <<< $(grep -i -e '\.mp3$' -e '\.aac$' -e '\.flac$' -e '\.aiff$' -e '\.alac$' -e '\.m4a$' -e '\.cda$' -e '\.wav$' -e '\.opus$' -e '\.ogg$' <<< "$inputList")
+
+  imageExtentions='jpg|jpeg|png|tiff|tif|raw|bmp|heif|heic|avif|jxl'
+  videoExtentions='mp4|mkv|m4v|f4v|f4a|m4b|m4r|f4b|mov|wmv|wma|webm|flv|avi|vvc|266'
+  audioExtentions='mp3|aac|flac|aiff|alac|m4a|cda|wav|opus|ogg'
+  includeExtentions=($includeExtentions)
+  excludeExtentions=($excludeExtentions)
+
+  for i in "${includeExtentions[@]}"; do
+    [[ "$i" =~ $imageExtentions ]] && grepImageArgs+=("$i")
+    [[ "$i" =~ $videoExtentions ]] && grepVideoArgs+=("\.$i$")
+    [[ "$i" =~ $audioExtentions ]] && grepAudioArgs+=("\.$i$")
+  done
+
+  [[ -n "$grepImageArgs" ]] && readarray -t imageList <<< $(grep -Ei $grepImageArgs <<< "$inputList")
+  [[ -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(grep -Ei $grepVideoArgs <<< "$inputList")
+  [[ -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(grep -Ei $grepAudioArgs <<< "$inputList")
 
   # return search results
   echo
@@ -646,25 +643,8 @@ checkFiles() {
   [[ -n "$audioList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -en '\e[0m'
   echo
 
-#  # include extentions
-#  echo
-#  includeExtentions=($includeExtentions)
-#  for i in "${includeExtentions[@]}"; do
-#    case "$i" in
-#      jpg|jpeg|png|tiff|tif|raw|bmp|heif|heic|avif|jxl)
-#        echo "Including extention $i as image";;
-#      mp4|mkv|m4v|f4v|f4a|m4b|m4r|f4b|mov|wmv|wma|webm|flv|avi|vvc|266)
-#        echo "Including extention $i as video";;
-#      mp3|aac|flac|aiff|alac|m4a|cda|wav|opus|ogg)
-#        echo "Including extention $i as audio";;
-#      *) warn "Unknown extention : $i";;
-#    esac
-#  done
-#
-#    if [[ -n "$includeExtention" ]]; then
-#      inputList2+=$()
-#    fi
-#
+  exit
+
 #  # build the file list
 #  echo
 #  [ "$recursive" = 'true' ] && shopt -s globstar && stars='**' || stars='*'
