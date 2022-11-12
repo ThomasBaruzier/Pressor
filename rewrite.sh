@@ -16,6 +16,7 @@ getConfig() {
   excludeExtentions=''
 
   recursive='true'
+  deepSearch='false'
   overwrite='false'
 
   # encoding options
@@ -82,6 +83,11 @@ getConfig() {
   log='false'
   loglevel='info'
 
+  # define extentions
+  imageExtentions='jpg|jpeg|png|tiff|tif|raw|bmp|heif|heic|avif|jxl'
+  videoExtentions='mp4|mkv|m4v|f4v|f4a|m4b|m4r|f4b|mov|wmv|wma|webm|flv|avi|vvc|266'
+  audioExtentions='mp3|aac|flac|aiff|alac|m4a|cda|wav|opus|ogg'
+
 }
 
 processArgs() {
@@ -90,16 +96,38 @@ processArgs() {
   args=("$@")
   [[ -z "$args" ]] && error 'noArg'
   for ((i=0; i < "${#args[@]}"; i++)); do
+
     args[i]="${args[i]//\~/$HOME}"
     [[ "${args[i]}" = '-h' || "${args[i]}" = '--help' ]] && printHelp
-    [[ "${args[i]}" = '-i' || "${args[i]}" = '--include' ]] \
-    && videos='false' && images='false' && audios='false' && unset includeExtentions
-    [[ "${args[i]}" = '-e' || "${args[i]}" = '--exclude' ]] \
-    && videos='true' && images='true' && audios='true' && unset excludeExtentions
+
+    if [[ "${args[i]}" = '-i' || "${args[i]}" = '--include' ]]; then
+      ((i++))
+      while [[ "${args[i]:0:1}" != '-' && -n "${args[i]:0:1}" ]]; do
+        includeArgs+="${args[i]:1} "
+        ((i++))
+      done
+      [[ "$includeArgs" =~ $imageExtentions ]] && images='false'
+      [[ "$includeArgs" =~ $videoExtentions ]] && videos='false'
+      [[ "$includeArgs" =~ $audioExtentions ]] && audios='false'
+      [[ ! "$includeArgs" =~ $imageExtentions|$videoExtentions|$audioExtentions ]] \
+      && videos='false' && images='false' && audios='false' && unset includeExtentions
+    fi
+
+    if [[ "${args[i]}" = '-e' || "${args[i]}" = '--exclude' ]]; then
+      ((i++))
+      while [[ "${args[i]:0:1}" != '-' && -n "${args[i]:0:1}" ]]; do
+        excludeArgs+="${args[i]:1} "
+        ((i++))
+      done
+      [[ ! "$excludeArgs" =~ $imageExtentions|$videoExtentions|$audioExtentions ]] \
+      && videos='true' && images='true' && audios='true' && unset excludeExtentions
+    fi
+
     [[ "${args[i]}" = '-R' || "${args[i]}" = '--rename' ]] \
     && renameVideos='false' && renameImages='false' && renameAudios='false' && unset renameExtentions
     [[ "${args[i]}" = '-C' || "${args[i]}" = '--crop' ]] \
     && cropVideos='false' && cropImages='false' && cropAudios='false'
+
   done
 
   # get paths
@@ -272,6 +300,10 @@ printHelp() {
   echo "      > Default : true"
   echo
   echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
+  echo "      > Search files by their content, not their extentions"
+  echo "      > Default : false"
+  echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
   echo "      > Overwrites already compressed files"
   echo "      > Default : false"
   echo
@@ -343,6 +375,7 @@ printVerbose() {
   echo -en "> Exclude extentions : "; colorise "$excludeExtentions"
   echo
   echo -en "> Recursive : "; colorise "$recursive"
+  echo -en "> Deep search : "; colorise "$deepSearch"
   echo -en "> Overwrite : "; colorise "$overwrite"
   echo
   echo -e "\e[34mEncoding options :\e[0m"
@@ -608,30 +641,39 @@ addFFmpegArg() {
 checkFiles() {
 
   # build file list
+  [ "$recursive" != 'true' ] && toAdd=' -maxdepth 1 '
   for i in "${inputs[@]}"; do
-    inputList+=$(find "$i" -type f 2>/dev/null)
+    inputList+=$(find "$i" $toAdd -type f 2>/dev/null)
   done
 
-  # sort files by type
-#  [ "$images" = 'true' ] && readarray -t imageList <<< $(grep -i -e '\.jpg$' -e '\.jpeg$' -e '\.png$' -e '\.tiff$' -e '\.tif$' -e '\.raw$' -e '\.bmp$' -e '\.heif$' -e '\.heic$' -e '\.avif$' -e '\.jxl$' <<< "$inputList")
-#  [ "$videos" = 'true' ] && readarray -t videoList <<< $(grep -i -e '\.mp4$' -e '\.mkv$' -e '\.m4v$' -e '\.f4v$' -e '\.f4a$' -e '\.m4b$' -e '\.m4r$' -e '\.f4b$' -e '\.mov$' -e '\.wmv$' -e '\.wma$' -e '\.webm$' -e '\.flv$' -e '\.avi$' -e '\.vvc$' -e '\.266$' <<< "$inputList")
-#  [ "$audios" = 'true' ] && readarray -t audioList <<< $(grep -i -e '\.mp3$' -e '\.aac$' -e '\.flac$' -e '\.aiff$' -e '\.alac$' -e '\.m4a$' -e '\.cda$' -e '\.wav$' -e '\.opus$' -e '\.ogg$' <<< "$inputList")
+  # exclude extentions
+  if [[ -n "$excludeExtentions" ]]; then
+    excludeExtentions="-e \.${excludeExtentions// /\$ -e \\.}\$"
+    inputList=$(grep -Eiv $excludeExtentions <<< "$inputList")
+  fi
 
-  imageExtentions='jpg|jpeg|png|tiff|tif|raw|bmp|heif|heic|avif|jxl'
-  videoExtentions='mp4|mkv|m4v|f4v|f4a|m4b|m4r|f4b|mov|wmv|wma|webm|flv|avi|vvc|266'
-  audioExtentions='mp3|aac|flac|aiff|alac|m4a|cda|wav|opus|ogg'
+  # include custom extentions
   includeExtentions=($includeExtentions)
-  excludeExtentions=($excludeExtentions)
-
   for i in "${includeExtentions[@]}"; do
-    [[ "$i" =~ $imageExtentions ]] && grepImageArgs+=("$i")
-    [[ "$i" =~ $videoExtentions ]] && grepVideoArgs+=("\.$i$")
-    [[ "$i" =~ $audioExtentions ]] && grepAudioArgs+=("\.$i$")
+    [[ "$i" =~ $imageExtentions ]] && grepImageArgs+=" -e \.${i}$"
+    [[ "$i" =~ $videoExtentions ]] && grepVideoArgs+=" -e \.${i}$"
+    [[ "$i" =~ $audioExtentions ]] && grepAudioArgs+=" -e \.${i}$"
   done
-
   [[ -n "$grepImageArgs" ]] && readarray -t imageList <<< $(grep -Ei $grepImageArgs <<< "$inputList")
   [[ -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(grep -Ei $grepVideoArgs <<< "$inputList")
   [[ -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(grep -Ei $grepAudioArgs <<< "$inputList")
+
+  # sort files by type
+  [ "$images" = 'true' ] && readarray -t -O "${#imageList[@]}" imageList <<< $(grep -i -e '\.jpg$' -e '\.jpeg$' -e '\.png$' -e '\.tiff$' -e '\.tif$' -e '\.raw$' -e '\.bmp$' -e '\.heif$' -e '\.heic$' -e '\.avif$' -e '\.jxl$' <<< "$inputList")
+  [ "$videos" = 'true' ] && readarray -t -O "${#videoList[@]}" videoList <<< $(grep -i -e '\.mp4$' -e '\.mkv$' -e '\.m4v$' -e '\.f4v$' -e '\.f4a$' -e '\.m4b$' -e '\.m4r$' -e '\.f4b$' -e '\.mov$' -e '\.wmv$' -e '\.wma$' -e '\.webm$' -e '\.flv$' -e '\.avi$' -e '\.vvc$' -e '\.266$' <<< "$inputList")
+  [ "$audios" = 'true' ] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -i -e '\.mp3$' -e '\.aac$' -e '\.flac$' -e '\.aiff$' -e '\.alac$' -e '\.m4a$' -e '\.cda$' -e '\.wav$' -e '\.opus$' -e '\.ogg$' <<< "$inputList")
+
+
+  # get unique values
+  IFS=$'\n'
+  imageList=($(sort -u <<<"${imageList[*]}"))
+  videoList=($(sort -u <<<"${videoList[*]}"))
+  audioList=($(sort -u <<<"${audioList[*]}"))
 
   # return search results
   echo
@@ -726,6 +768,11 @@ none|nothing) images='true'; videos='true'; audios='true';;
 RECURSIVE
 default|y|yes|on|'true'|'enable') recursive='true';;
 n|no|off|'false'|'disable') recursive='false';;
+*) error 'badParam' "$id or $name" "$arg";;
+
+DEEP SEARCH
+default|y|yes|on|'true'|'enable') deepSearch='true';;
+n|no|off|'false'|'disable') deepSearch='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 OVERWRITE
