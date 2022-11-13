@@ -651,31 +651,15 @@ checkFiles() {
 
     # exclude extentions
     if [[ -n "$excludeExtentions" ]]; then
-      regex="\.${excludeExtentions// /: |\\.}: "
-      while read -r line; do
-        [[ ! "${line,,}" =~ $regex ]] && newInputList+="$line"$'\n'
-      done <<< "$inputList"
-      inputList="$newInputList"
-      unset "$newInputList"
+      excludeExtentions="-e \.${excludeExtentions// /: -e \\.}:"
+      echo "grep -Eiv $excludeExtentions"
+      inputList=$(grep -Eiv $excludeExtentions <<< "$inputList")
     fi
 
     # sort files by type
-    if [ "$images" = 'true' ]; then
-      readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
-      [ -n "$imageList" ] && echo "> Found ${#imageList[@]} images" || echo "> Found no images"
-      [[ -n "$imageList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${imageList[@]}" && echo -e '\e[0m'
-    fi
-    if [ "$videos" = 'true' ]; then
-      readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
-      [ -n "$videoList" ] && echo "> Found ${#videoList[@]} videos" || echo "> Found no videos"
-      [[ -n "$videoList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${videoList[@]}" && echo -e '\e[0m'
-    fi
-    if [ "$audios" = 'true' ]; then
-      readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
-      [ -n "$audioList" ] && echo "> Found ${#audioList[@]} audios" || echo "> Found no audio files"
-      [[ -n "$audioList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -en '\e[0m'
-    fi
-    echo
+    [ "$images" = 'true' ] && readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
+    [ "$videos" = 'true' ] && readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
+    [ "$audios" = 'true' ] && readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
 
   else
 
@@ -708,7 +692,7 @@ checkFiles() {
     grepAudioExtentions="-e \.${audioExtentions// /\$ -e \\.}\$"
     [[ "$images" = 'true' || -n "$grepImageArgs" ]] && readarray -t -O "${#imageList[@]}" imageList <<< $(grep -Ei $grepImageExtentions <<< "$inputList")
     [[ "$videos" = 'true' || -n "$grepVideoArgs" ]] && readarray -t -O "${#videoList[@]}" videoList <<< $(grep -Ei $grepVideoExtentions <<< "$inputList")
-    [[ "$audios" = 'true' || -n "$grepAudioArgs" ]] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -Ei $grepAudioExtentions <<< "$inputList") && echo searched audio
+    [[ "$audios" = 'true' || -n "$grepAudioArgs" ]] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -Ei $grepAudioExtentions <<< "$inputList")
 
   fi
 
@@ -720,54 +704,15 @@ checkFiles() {
 
   # return search results
   echo
-  [[ -n "$imageList" ]] && echo "> Found ${#imageList[@]} images" || echo 'Found no images'
+  [[ -n "$imageList" ]] && echo "> Found ${#imageList[@]} images" || echo '> Found no images'
   [[ -n "$imageList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${imageList[@]}" && echo -e '\e[0m'
-  [[ -n "$videoList" ]] && echo "> Found ${#videoList[@]} videos" || echo 'Found no videos'
+  [[ -n "$videoList" ]] && echo "> Found ${#videoList[@]} videos" || echo '> Found no videos'
   [[ -n "$videoList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${videoList[@]}" && echo -e '\e[0m'
-  [[ -n "$audioList" ]] && echo "> Found ${#audioList[@]} audios" || echo 'Found no audios'
+  [[ -n "$audioList" ]] && echo "> Found ${#audioList[@]} audios" || echo '> Found no audios'
   [[ -n "$audioList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -en '\e[0m'
   echo
 
   exit
-
-#  # build the file list
-#  echo
-#  [ "$recursive" = 'true' ] && shopt -s globstar && stars='**' || stars='*'
-#  for i in "${inputs[@]}"; do
-#    echo "Searching medias inside '$i'..."
-#    [[ "${i: -1}" != '/' && -d "$i" ]] && i+='/'
-#    [[ "$images" = 'true' || "$videos" = 'true' || "$audios" = 'true' ]] && inputList+=$(file -i "$i"$stars)
-#  done
-#  inputList=$(sort -u <<< "$inputList")
-#  echo
-#
-#  # exclude extentions
-#  if [[ -n "$excludeExtentions" ]]; then
-#    regex="\.${excludeExtentions// /: |\\.}: "
-#    while read -r line; do
-#      [[ ! "${line,,}" =~ $regex ]] && newInputList+="$line"$'\n'
-#    done <<< "$inputList"
-#    inputList="$newInputList"
-#    unset "$newInputList"
-#  fi
-#
-#  # determine the type of each file
-#  if [ "$images" = 'true' ]; then
-#    readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
-#    [ -n "$imageList" ] && echo "> Found ${#imageList[@]} images" || echo "> Found no images"
-#    [[ -n "$imageList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${imageList[@]}" && echo -e '\e[0m'
-#  fi
-#  if [ "$videos" = 'true' ]; then
-#    readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
-#    [ -n "$videoList" ] && echo "> Found ${#videoList[@]} videos" || echo "> Found no videos"
-#    [[ -n "$videoList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${videoList[@]}" && echo -e '\e[0m'
-#  fi
-#  if [ "$audios" = 'true' ]; then
-#    readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
-#    [ -n "$audioList" ] && echo "> Found ${#audioList[@]} audios" || echo "> Found no audio files"
-#    [[ -n "$audioList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -en '\e[0m'
-#  fi
-#  echo
 
 }
 
