@@ -651,10 +651,21 @@ checkFiles() {
 
     # exclude extentions
     if [[ -n "$excludeExtentions" ]]; then
-      excludeExtentions="-e \.${excludeExtentions// /: -e \\.}:"
-      echo "grep -Eiv $excludeExtentions"
+      excludeExtentions="-e \.${excludeExtentions// /[^\/]+[^\\;]+[^c]+charset=.+$ -e \.}[^/]+[^\;]+[^c]+charset=.+$"
       inputList=$(grep -Eiv $excludeExtentions <<< "$inputList")
     fi
+
+    # include custom extentions
+    echo "1 - $includeExtentions"
+    for i in "${includeExtentions[@]}"; do
+      [[ "$i" =~ ${imageExtentions// /|} ]] && grepImageArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
+      [[ "$i" =~ ${videoExtentions// /|} ]] && grepVideoArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
+      [[ "$i" =~ ${audioExtentions// /|} ]] && grepAudioArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
+    done
+    echo "grep -Ei $grepImageArgs"
+    [[ -n "$grepImageArgs" ]] && readarray -t imageList <<< $(grep -Ei $grepImageArgs <<< "$inputList")
+    [[ -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(grep -Ei $grepVideoArgs <<< "$inputList")
+    [[ -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(grep -Ei $grepAudioArgs <<< "$inputList")
 
     # sort files by type
     [ "$images" = 'true' ] && readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
@@ -678,9 +689,9 @@ checkFiles() {
     # include custom extentions
     includeExtentions=($includeExtentions)
     for i in "${includeExtentions[@]}"; do
-      [[ "$i" =~ $imageExtentions ]] && grepImageArgs+=" -e \.${i}$"
-      [[ "$i" =~ $videoExtentions ]] && grepVideoArgs+=" -e \.${i}$"
-      [[ "$i" =~ $audioExtentions ]] && grepAudioArgs+=" -e \.${i}$"
+      [[ "$i" =~ ${imageExtentions// /|} ]] && grepImageArgs+=" -e \.${i}$"
+      [[ "$i" =~ ${videoExtentions// /|} ]] && grepVideoArgs+=" -e \.${i}$"
+      [[ "$i" =~ ${audioExtentions// /|} ]] && grepAudioArgs+=" -e \.${i}$"
     done
     [[ -n "$grepImageArgs" ]] && readarray -t imageList <<< $(grep -Ei $grepImageArgs <<< "$inputList")
     [[ -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(grep -Ei $grepVideoArgs <<< "$inputList")
@@ -698,9 +709,9 @@ checkFiles() {
 
   # get unique values
   IFS=$'\n'
-  imageList=($(sort -u <<<"${imageList[*]}"))
-  videoList=($(sort -u <<<"${videoList[*]}"))
-  audioList=($(sort -u <<<"${audioList[*]}"))
+  imageList=($(sort -u <<< "${imageList[*]}"))
+  videoList=($(sort -u <<< "${videoList[*]}"))
+  audioList=($(sort -u <<< "${audioList[*]}"))
 
   # return search results
   echo
