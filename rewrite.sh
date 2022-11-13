@@ -84,9 +84,9 @@ getConfig() {
   loglevel='info'
 
   # define extentions
-  imageExtentions='jpg|jpeg|png|tiff|tif|raw|bmp|heif|heic|avif|jxl'
-  videoExtentions='mp4|mkv|3pg|m4v|f4v|f4a|m4b|m4r|f4b|mov|wmv|wma|webm|flv|avi|vvc|266'
-  audioExtentions='mp3|aac|flac|aiff|alac|m4a|cda|wav|opus|ogg'
+  imageExtentions='jpg jpeg png tiff tif raw bmp heif heic avif jxl'
+  videoExtentions='mp4 mkv 3pg m4v f4v f4a m4b m4r f4b mov wmv wma webm flv avi vvc 266'
+  audioExtentions='mp3 aac flac aiff alac m4a cda wav opus ogg'
 
 }
 
@@ -706,9 +706,9 @@ checkFiles() {
     grepImageExtentions="-e \.${imageExtentions// /\$ -e \\.}\$"
     grepVideoExtentions="-e \.${videoExtentions// /\$ -e \\.}\$"
     grepAudioExtentions="-e \.${audioExtentions// /\$ -e \\.}\$"
-    [ "$images" = 'true' ] && readarray -t -O "${#imageList[@]}" imageList <<< $(grep -Ei $grepImageExtentions <<< "$inputList")
-    [ "$videos" = 'true' ] && readarray -t -O "${#videoList[@]}" videoList <<< $(grep -Ei $grepVideoExtentions <<< "$inputList")
-    [ "$audios" = 'true' ] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -Ei $grepAudioExtentions <<< "$inputList")
+    [[ "$images" = 'true' || -n "$grepImageArgs" ]] && readarray -t -O "${#imageList[@]}" imageList <<< $(grep -Ei $grepImageExtentions <<< "$inputList")
+    [[ "$videos" = 'true' || -n "$grepVideoArgs" ]] && readarray -t -O "${#videoList[@]}" videoList <<< $(grep -Ei $grepVideoExtentions <<< "$inputList")
+    [[ "$audios" = 'true' || -n "$grepAudioArgs" ]] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -Ei $grepAudioExtentions <<< "$inputList") && echo searched audio
 
   fi
 
