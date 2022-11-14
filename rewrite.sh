@@ -85,7 +85,7 @@ getConfig() {
 
   # define extentions
   imageExtentions='jpg jpeg png tiff tif raw bmp heif heic avif jxl'
-  videoExtentions='mp4 mkv 3pg m4v f4v f4a m4b m4r f4b mov wmv wma webm flv avi vvc 266'
+  videoExtentions='mp4 mkv 3pg 3gp m4v f4v f4a m4b m4r f4b mov wmv wma webm flv avi vvc 266'
   audioExtentions='mp3 aac flac aiff alac m4a cda wav opus ogg'
 
 }
@@ -106,10 +106,10 @@ processArgs() {
         includeArgs+="${args[i]:1} "
         ((i++))
       done
-      [[ "$includeArgs" =~ $imageExtentions ]] && images='false'
-      [[ "$includeArgs" =~ $videoExtentions ]] && videos='false'
-      [[ "$includeArgs" =~ $audioExtentions ]] && audios='false'
-      [[ ! "$includeArgs" =~ $imageExtentions|$videoExtentions|$audioExtentions ]] \
+      [[ "$includeArgs" =~ ${imageExtentions// /|} ]] && images='false'
+      [[ "$includeArgs" =~ ${videoExtentions// /|} ]] && videos='false'
+      [[ "$includeArgs" =~ ${audioExtentions// /|} ]] && audios='false'
+      [[ ! "$includeArgs" =~ ${imageExtentions// /|}|${videoExtentions// /|}|${audioExtentions// /|} ]] \
       && videos='false' && images='false' && audios='false' && unset includeExtentions
     fi
 
@@ -656,23 +656,27 @@ checkFiles() {
     fi
 
     # include custom extentions
-    echo "1 - $includeExtentions"
+    includeExtentions=($includeExtentions)
     for i in "${includeExtentions[@]}"; do
       [[ "$i" =~ ${imageExtentions// /|} ]] && grepImageArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
       [[ "$i" =~ ${videoExtentions// /|} ]] && grepVideoArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
       [[ "$i" =~ ${audioExtentions// /|} ]] && grepAudioArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
     done
-    echo "grep -Ei $grepImageArgs"
     [[ -n "$grepImageArgs" ]] && readarray -t imageList <<< $(grep -Ei $grepImageArgs <<< "$inputList")
     [[ -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(grep -Ei $grepVideoArgs <<< "$inputList")
     [[ -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(grep -Ei $grepAudioArgs <<< "$inputList")
 
     # sort files by type
-    [ "$images" = 'true' ] && readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
-    [ "$videos" = 'true' ] && readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
-    [ "$audios" = 'true' ] && readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
+    [[ "$images" = 'true' ]] && readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
+    [[ "$videos" = 'true' ]] && readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
+    [[ "$audios" = 'true' ]] && readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
 
-  else
+    # get paths only
+    [[ "$images" != 'true' && -n "$grepImageArgs" ]] && readarray -t imageList <<< $(printf '%s\n' "${imageList[@]}" | grep -Po '.+(?=:[ ]*image/)')
+    [[ "$videos" != 'true' && -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(printf '%s\n' "${videoList[@]}" | grep -Po '.+(?=:[ ]*video/)')
+    [[ "$audios" != 'true' && -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(printf '%s\n' "${audioList[@]}" | grep -Po '.+(?=:[ ]*audio/)')
+
+  elif [ "$deepSearch" != 'true' ]; then
 
     # build file list
     [ "$recursive" != 'true' ] && toAdd=' -maxdepth 1 '
@@ -701,9 +705,9 @@ checkFiles() {
     grepImageExtentions="-e \.${imageExtentions// /\$ -e \\.}\$"
     grepVideoExtentions="-e \.${videoExtentions// /\$ -e \\.}\$"
     grepAudioExtentions="-e \.${audioExtentions// /\$ -e \\.}\$"
-    [[ "$images" = 'true' || -n "$grepImageArgs" ]] && readarray -t -O "${#imageList[@]}" imageList <<< $(grep -Ei $grepImageExtentions <<< "$inputList")
-    [[ "$videos" = 'true' || -n "$grepVideoArgs" ]] && readarray -t -O "${#videoList[@]}" videoList <<< $(grep -Ei $grepVideoExtentions <<< "$inputList")
-    [[ "$audios" = 'true' || -n "$grepAudioArgs" ]] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -Ei $grepAudioExtentions <<< "$inputList")
+    [[ "$images" = 'true' ]] && readarray -t -O "${#imageList[@]}" imageList <<< $(grep -Ei $grepImageExtentions <<< "$inputList")
+    [[ "$videos" = 'true' ]] && readarray -t -O "${#videoList[@]}" videoList <<< $(grep -Ei $grepVideoExtentions <<< "$inputList")
+    [[ "$audios" = 'true' ]] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -Ei $grepAudioExtentions <<< "$inputList")
 
   fi
 
