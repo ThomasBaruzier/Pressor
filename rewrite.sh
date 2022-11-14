@@ -79,14 +79,15 @@ getConfig() {
 
   # other options
 
+  noConfirm='true'
   verbose='false'
   log='false'
   loglevel='info'
 
   # define extentions
-  imageExtentions='jpg jpeg png tiff tif raw bmp heif heic avif jxl'
-  videoExtentions='mp4 mkv 3pg 3gp m4v f4v f4a m4b m4r f4b mov wmv wma webm flv avi vvc 266'
-  audioExtentions='mp3 aac flac aiff alac m4a cda wav opus ogg'
+  imageExtentions='jpg jpeg png tiff tif raw gif bmp webp heif heic avif jxl'
+  videoExtentions='mp4 mkv 3pg 3gp m4v f4v f4a m4b m4r f4b vob ogg ogv drc gifv mng qt yuv rm rmvb asf amv mp svi mov wmv wma webm flv avi vvc 266'
+  audioExtentions='mp3 aac flac aiff alac m4a cda wav opus'
 
 }
 
@@ -350,6 +351,7 @@ printHelp() {
   echo
   echo "Other options :"
   echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]} : skip prompt before compression"; ((i++))
   echo "  ${optionIDs[i]}, ${optionNames[i]} : print more information"; ((i++))
   echo "  ${optionIDs[i]}, ${optionNames[i]} {file} : --verbose redirected to a file"; ((i++))
   echo "  ${optionIDs[i]}, ${optionNames[i]} <0|1|2|info|warning|error>"; ((i++))
@@ -474,7 +476,7 @@ warn() {
 
 info() {
 
-  [[ "$loglevel" = 'error' || "$loglevel" = 'warning' ]] && return
+ k [[ "$loglevel" = 'error' || "$loglevel" = 'warning' ]] && return
   echo -en '\nINFO : '
   case "$1" in
     'noFile') echo "No filename provided for $2 : Using $3";;
@@ -640,49 +642,47 @@ addFFmpegArg() {
 
 checkFiles() {
 
+  excludeExtentions=("$excludeExtentions")
+  includeExtentions=("$includeExtentions")
+
+  # build file list
+  [ "$recursive" != 'true' ] && toAdd=' -maxdepth 1 '
+  for i in "${inputs[@]}"; do
+    inputList+=$(find "$i" $toAdd -type f 2>/dev/null)$'\n'
+  done
+
   if [ "$deepSearch" = 'true' ]; then
 
     # build file list
-    [ "$recursive" = 'true' ] && shopt -s globstar && stars='**' || stars='*'
-    for i in "${inputs[@]}"; do
-      [[ "${i: -1}" != '/' && -d "$i" ]] && i+='/'
-      inputList+=$(file -i "$i"$stars)
-    done
+    IFS=$'\n'
+    inputList=$(file -Ni $inputList)
 
-    # exclude extentions
+     # exclude extentions
     if [[ -n "$excludeExtentions" ]]; then
-      excludeExtentions="-e \.${excludeExtentions// /[^\/]+[^\\;]+[^c]+charset=.+$ -e \.}[^/]+[^\;]+[^c]+charset=.+$"
+      excludeExtentions="-e \.${excludeExtentions// /[^\/]+[^\\;]+[[:space:]]charset=.+$ -e \.}[^/]+[^\;]+[[:space:]]charset=.+$"
       inputList=$(grep -Eiv $excludeExtentions <<< "$inputList")
     fi
 
-    # include custom extentions
-    includeExtentions=($includeExtentions)
-    for i in "${includeExtentions[@]}"; do
-      [[ "$i" =~ ${imageExtentions// /|} ]] && grepImageArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
-      [[ "$i" =~ ${videoExtentions// /|} ]] && grepVideoArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
-      [[ "$i" =~ ${audioExtentions// /|} ]] && grepAudioArgs+=" -e \.${i}[^\/]+[^\\;]+[^c]+charset=.+$"
-    done
-    [[ -n "$grepImageArgs" ]] && readarray -t imageList <<< $(grep -Ei $grepImageArgs <<< "$inputList")
-    [[ -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(grep -Ei $grepVideoArgs <<< "$inputList")
-    [[ -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(grep -Ei $grepAudioArgs <<< "$inputList")
-
     # sort files by type
-    [[ "$images" = 'true' ]] && readarray -t imageList <<< $(grep -Po '.+(?=:[ ]*image/)' <<< "$inputList")
-    [[ "$videos" = 'true' ]] && readarray -t videoList <<< $(grep -Po '.+(?=:[ ]*video/)' <<< "$inputList")
-    [[ "$audios" = 'true' ]] && readarray -t audioList <<< $(grep -Po '.+(?=:[ ]*audio/)' <<< "$inputList")
+    if [ "$videos" = 'true' ]; then
+      videoList=$(grep -Po '.+(?=: video/)' <<< "$inputList")
+      tempVideoList=$(grep -Po '.+(?=: application/octet-stream)' <<< "$inputList")
+      tempVideoList=$(file -N $tempVideoList | grep -Po '.+(?=: ISO Media$)')
+      [[ -n "$videoList" && -n "$tempVideoList" ]] && videoList+=$'\n'"$tempVideoList"
+      [[ -z "$videoList" && -n "$tempVideoList" ]] && videoList="$tempVideoList"
+    fi
 
-    # get paths only
-    [[ "$images" != 'true' && -n "$grepImageArgs" ]] && readarray -t imageList <<< $(printf '%s\n' "${imageList[@]}" | grep -Po '.+(?=:[ ]*image/)')
-    [[ "$videos" != 'true' && -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(printf '%s\n' "${videoList[@]}" | grep -Po '.+(?=:[ ]*video/)')
-    [[ "$audios" != 'true' && -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(printf '%s\n' "${audioList[@]}" | grep -Po '.+(?=:[ ]*audio/)')
+    if [ "$audios" = 'true' ]; then
+      audioList=$(grep -Po '.+(?=: audio/)' <<< "$inputList")
+      tempAudioList=$(grep -Po '.+(?=: application/octet-stream)' <<< "$inputList")
+      tempAudioList=$(file -N $tempAudioList | grep -Po '.+(?=: Audio file)')
+      [[ -n "$audioList" && -n "$tempAudioList" ]] && audioList+=$'\n'"$tempAudioList"
+      [[ -z "$audioList" && -n "$tempAudioList" ]] && audioList="$tempAudioList"
+    fi
 
-  elif [ "$deepSearch" != 'true' ]; then
+    [ "$images" = 'true' ] && imageList=$(grep -Po '.+(?=: image/)' <<< "$inputList")
 
-    # build file list
-    [ "$recursive" != 'true' ] && toAdd=' -maxdepth 1 '
-    for i in "${inputs[@]}"; do
-      inputList+=$(find "$i" $toAdd -type f 2>/dev/null)
-    done
+  else
 
      # exclude extentions
     if [[ -n "$excludeExtentions" ]]; then
@@ -690,32 +690,28 @@ checkFiles() {
       inputList=$(grep -Eiv $excludeExtentions <<< "$inputList")
     fi
 
-    # include custom extentions
-    includeExtentions=($includeExtentions)
-    for i in "${includeExtentions[@]}"; do
-      [[ "$i" =~ ${imageExtentions// /|} ]] && grepImageArgs+=" -e \.${i}$"
-      [[ "$i" =~ ${videoExtentions// /|} ]] && grepVideoArgs+=" -e \.${i}$"
-      [[ "$i" =~ ${audioExtentions// /|} ]] && grepAudioArgs+=" -e \.${i}$"
-    done
-    [[ -n "$grepImageArgs" ]] && readarray -t imageList <<< $(grep -Ei $grepImageArgs <<< "$inputList")
-    [[ -n "$grepVideoArgs" ]] && readarray -t videoList <<< $(grep -Ei $grepVideoArgs <<< "$inputList")
-    [[ -n "$grepAudioArgs" ]] && readarray -t audioList <<< $(grep -Ei $grepAudioArgs <<< "$inputList")
-
     # sort files by type
-    grepImageExtentions="-e \.${imageExtentions// /\$ -e \\.}\$"
-    grepVideoExtentions="-e \.${videoExtentions// /\$ -e \\.}\$"
-    grepAudioExtentions="-e \.${audioExtentions// /\$ -e \\.}\$"
-    [[ "$images" = 'true' ]] && readarray -t -O "${#imageList[@]}" imageList <<< $(grep -Ei $grepImageExtentions <<< "$inputList")
-    [[ "$videos" = 'true' ]] && readarray -t -O "${#videoList[@]}" videoList <<< $(grep -Ei $grepVideoExtentions <<< "$inputList")
-    [[ "$audios" = 'true' ]] && readarray -t -O "${#audioList[@]}" audioList <<< $(grep -Ei $grepAudioExtentions <<< "$inputList")
+    [ "$images" = 'true' ] && imageList=$(grep -Ei -e '\.'${imageExtentions// /\$ -e \\.}'$' <<< "$inputList")
+    [ "$videos" = 'true' ] && videoList=$(grep -Ei -e '\.'${videoExtentions// /\$ -e \\.}'$' <<< "$inputList")
+    [ "$audios" = 'true' ] && audioList=$(grep -Ei -e '\.'${audioExtentions// /\$ -e \\.}'$' <<< "$inputList")
 
   fi
 
+  # include extentions
+  for i in "${includeExtentions[@]}"; do
+    [[ "$i" =~ ${imageExtentions// /|} ]] && grepImageArgs+=" -e \.${i}$"
+    [[ "$i" =~ ${videoExtentions// /|} ]] && grepVideoArgs+=" -e \.${i}$"
+    [[ "$i" =~ ${audioExtentions// /|} ]] && grepAudioArgs+=" -e \.${i}$"
+  done
+  [[ -n "$grepImageArgs" ]] && imageList+=$'\n'$(grep -Ei $grepImageArgs <<< "$inputList")
+  [[ -n "$grepVideoArgs" ]] && videoList+=$'\n'$(grep -Ei $grepVideoArgs <<< "$inputList")
+  [[ -n "$grepAudioArgs" ]] && audioList+=$'\n'$(grep -Ei $grepAudioArgs <<< "$inputList")
+
   # get unique values
-  IFS=$'\n'
-  imageList=($(sort -u <<< "${imageList[*]}"))
-  videoList=($(sort -u <<< "${videoList[*]}"))
-  audioList=($(sort -u <<< "${audioList[*]}"))
+  readarray -t imageList <<< $(sort -u <<< "$imageList")
+  readarray -t videoList <<< $(sort -u <<< "$videoList")
+  readarray -t audioList <<< $(sort -u <<< "$audioList")
+  unset IFS
 
   # return search results
   echo
@@ -727,14 +723,14 @@ checkFiles() {
   [[ -n "$audioList" && "$verbose" = true ]] && echo -e '\e[36m' && printf "%s\n" "${audioList[@]}" && echo -en '\e[0m'
   echo
 
-  exit
-
 }
 
 compress() {
 
-#  read -p "Start compression ? (y/n) (default=y) : " answer
-#  [[ "$answer" = 'n' || "$answer" = 'no' ]] && echo -e "Exiting...\n" && exit
+  if [[ "$noConfirm" != 'true' ]]; then
+    read -p "Start compression ? (y/n) (default=y) : " answer
+    [[ "$answer" = 'n' || "$answer" = 'no' ]] && echo -e "Exiting...\n" && exit
+  fi
   echo "Starting compression..."
 
 }
@@ -821,6 +817,11 @@ none|nothing) renameImages='false'; renameVideos='false'; renameAudios='false';;
 TREE
 default|y|yes|on|'true'|'enable') tree='true';;
 n|no|off|'false'|'disable') tree='false';;
+*) error 'badParam' "$id or $name" "$arg";;
+
+NO CONFIRM
+default|y|yes|on|'true'|'enable') noConfirm='true';;
+n|no|off|'false'|'disable') noConfirm='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 VERBOSE
