@@ -17,6 +17,7 @@ getConfig() {
 
   recursive='true'
   deepSearch='false'
+  hiddenSearch='false'
   overwrite='false'
 
   # encoding options
@@ -95,6 +96,10 @@ processArgs() {
 
   # perform actions that need to be done before agument scanning
   args=("$@")
+  imageRegex="${imageExtentions// / |}"
+  videoRegex="${videoExtentions// / |}"
+  audioRegex="${audioExtentions// / |}"
+  allRegex="$imageRegex |$videoRegex |$audioRegex "
   [[ -z "$args" ]] && error 'noArg'
   for ((i=0; i < "${#args[@]}"; i++)); do
 
@@ -105,23 +110,23 @@ processArgs() {
       ((i++))
       while [[ "${args[i]:0:1}" != '-' && -n "${args[i]:0:1}" ]]; do
         includeArgs+="${args[i]:1} "
+        [[ "${args[i]:0:1}" = '.' && ! "${args[i]:1} " =~ $allRegex ]] && error 'badParam' '-i or --include' "${args[i]} (unknown extention)"
         ((i++))
       done
-      [[ "$includeArgs" =~ ${imageExtentions// /|} ]] && images='false'
-      [[ "$includeArgs" =~ ${videoExtentions// /|} ]] && videos='false'
-      [[ "$includeArgs" =~ ${audioExtentions// /|} ]] && audios='false'
-      [[ ! "$includeArgs" =~ ${imageExtentions// /|}|${videoExtentions// /|}|${audioExtentions// /|} ]] \
-      && videos='false' && images='false' && audios='false' && unset includeExtentions
+      [[ "$includeArgs" =~ $imageRegex ]] && images='false'
+      [[ "$includeArgs" =~ $videoRegex ]] && videos='false'
+      [[ "$includeArgs" =~ $audioRegex ]] && audios='false'
+      [[ ! "$includeArgs" =~ $allRegex ]] && videos='true' && images='true' && audios='true' && unset includeExtentions
     fi
 
     if [[ "${args[i]}" = '-e' || "${args[i]}" = '--exclude' ]]; then
       ((i++))
       while [[ "${args[i]:0:1}" != '-' && -n "${args[i]:0:1}" ]]; do
         excludeArgs+="${args[i]:1} "
+        [[ "${args[i]:0:1}" = '.' && ! "${args[i]:1} " =~ $allRegex ]] && error 'badParam' '-e or --exclude' "${args[i]} (unknown extention)"
         ((i++))
       done
-      [[ ! "$excludeArgs" =~ $imageExtentions|$videoExtentions|$audioExtentions ]] \
-      && videos='true' && images='true' && audios='true' && unset excludeExtentions
+      [[ ! "$excludeArgs" =~ $allRegex ]] && videos='false' && images='false' && audios='false' && unset excludeExtentions
     fi
 
     [[ "${args[i]}" = '-R' || "${args[i]}" = '--rename' ]] \
@@ -285,7 +290,7 @@ optionBuilder() {
 
 printHelp() {
 
-  i=0
+  i=1
   echo
   echo "USAGE : $0 <input(s)> <output> [arguments]"
   echo
@@ -302,6 +307,10 @@ printHelp() {
   echo
   echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
   echo "      > Search files by their content, not their extentions"
+  echo "      > Default : false"
+  echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
+  echo "      > Search for hidden files and inside hidden directories"
   echo "      > Default : false"
   echo
   echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
@@ -355,7 +364,6 @@ printHelp() {
   echo "  ${optionIDs[i]}, ${optionNames[i]} : print more information"; ((i++))
   echo "  ${optionIDs[i]}, ${optionNames[i]} {file} : --verbose redirected to a file"; ((i++))
   echo "  ${optionIDs[i]}, ${optionNames[i]} <0|1|2|info|warning|error>"; ((i++))
-  echo "  ${optionIDs[i]}, ${optionNames[i]} : print this menu"
   echo
   exit
 
@@ -378,6 +386,7 @@ printVerbose() {
   echo
   echo -en "> Recursive : "; colorise "$recursive"
   echo -en "> Deep search : "; colorise "$deepSearch"
+  echo -en "> Hidden search : "; colorise "$hiddenSearch"
   echo -en "> Overwrite : "; colorise "$overwrite"
   echo
   echo -e "\e[34mEncoding options :\e[0m"
@@ -642,8 +651,7 @@ addFFmpegArg() {
 
 checkFiles() {
 
-  excludeExtentions=("$excludeExtentions")
-  includeExtentions=("$includeExtentions")
+  includeExtentions=($includeExtentions)
 
   # build file list
   [ "$recursive" != 'true' ] && toAdd=' -maxdepth 1 '
@@ -656,18 +664,19 @@ checkFiles() {
     # build file list
     IFS=$'\n'
     inputList=$(file -Ni $inputList)
+    unset IFS
 
      # exclude extentions
     if [[ -n "$excludeExtentions" ]]; then
-      excludeExtentions="-e \.${excludeExtentions// /[^\/]+[^\\;]+[[:space:]]charset=.+$ -e \.}[^/]+[^\;]+[[:space:]]charset=.+$"
-      inputList=$(grep -Eiv $excludeExtentions <<< "$inputList")
+      excludeExtentions="-e \.${excludeExtentions// /:[[:space:]][^\/]+[^\\;]+\\;[[:space:]]charset=.+$ -e \.}:[[:space:]][^/]+[^\;]+\;[[:space:]]charset=.+$"
+      inputList=$(grep -Eiv $excludeExtentions <<< "$inputList" 2>/dev/null)
     fi
 
     # sort files by type
     if [ "$videos" = 'true' ]; then
       videoList=$(grep -Po '.+(?=: video/)' <<< "$inputList")
       tempVideoList=$(grep -Po '.+(?=: application/octet-stream)' <<< "$inputList")
-      tempVideoList=$(file -N $tempVideoList | grep -Po '.+(?=: ISO Media$)')
+      [[ -n "$tempVideoList" ]] && tempVideoList=$(file -N $tempVideoList | grep -Po '.+(?=: ISO Media$)')
       [[ -n "$videoList" && -n "$tempVideoList" ]] && videoList+=$'\n'"$tempVideoList"
       [[ -z "$videoList" && -n "$tempVideoList" ]] && videoList="$tempVideoList"
     fi
@@ -675,16 +684,18 @@ checkFiles() {
     if [ "$audios" = 'true' ]; then
       audioList=$(grep -Po '.+(?=: audio/)' <<< "$inputList")
       tempAudioList=$(grep -Po '.+(?=: application/octet-stream)' <<< "$inputList")
-      tempAudioList=$(file -N $tempAudioList | grep -Po '.+(?=: Audio file)')
+      [[ -n "$tempAudioList" ]] && tempAudioList=$(file -N $tempAudioList | grep -Po '.+(?=: Audio file)')
       [[ -n "$audioList" && -n "$tempAudioList" ]] && audioList+=$'\n'"$tempAudioList"
       [[ -z "$audioList" && -n "$tempAudioList" ]] && audioList="$tempAudioList"
     fi
 
     [ "$images" = 'true' ] && imageList=$(grep -Po '.+(?=: image/)' <<< "$inputList")
 
+    inputList=$(grep -Po '.+(?=: [^/]+[^;]+)' <<< "$inputList")$'\n'
+
   else
 
-     # exclude extentions
+    # exclude extentions
     if [[ -n "$excludeExtentions" ]]; then
       excludeExtentions="-e \.${excludeExtentions// /\$ -e \\.}\$"
       inputList=$(grep -Eiv $excludeExtentions <<< "$inputList")
@@ -699,15 +710,22 @@ checkFiles() {
 
   # include extentions
   for i in "${includeExtentions[@]}"; do
-    [[ "$i" =~ ${imageExtentions// /|} ]] && grepImageArgs+=" -e \.${i}$"
-    [[ "$i" =~ ${videoExtentions// /|} ]] && grepVideoArgs+=" -e \.${i}$"
-    [[ "$i" =~ ${audioExtentions// /|} ]] && grepAudioArgs+=" -e \.${i}$"
+    [[ "$i " =~ $imageRegex ]] && grepImageArgs+=" -e \.${i}$"
+    [[ "$i " =~ $videoRegex ]] && grepVideoArgs+=" -e \.${i}$"
+    [[ "$i " =~ $audioRegex ]] && grepAudioArgs+=" -e \.${i}$"
   done
-  [[ -n "$grepImageArgs" ]] && imageList+=$'\n'$(grep -Ei $grepImageArgs <<< "$inputList")
-  [[ -n "$grepVideoArgs" ]] && videoList+=$'\n'$(grep -Ei $grepVideoArgs <<< "$inputList")
-  [[ -n "$grepAudioArgs" ]] && audioList+=$'\n'$(grep -Ei $grepAudioArgs <<< "$inputList")
+  [[ -n "$grepImageArgs" ]] && tempImageList=$(grep -Ei $grepImageArgs <<< "$inputList")
+  [[ -n "$grepVideoArgs" ]] && tempVideoList=$(grep -Ei $grepVideoArgs <<< "$inputList")
+  [[ -n "$grepAudioArgs" ]] && tempAudioList=$(grep -Ei $grepAudioArgs <<< "$inputList")
+  [[ -n "$imageList" && -n "$tempImageList" ]] && imageList+=$'\n'"$tempImageList"
+  [[ -z "$imageList" && -n "$tempImageList" ]] && imageList="$tempImageList"
+  [[ -n "$videoList" && -n "$tempVideoList" ]] && videoList+=$'\n'"$tempVideoList"
+  [[ -z "$videoList" && -n "$tempVideoList" ]] && videoList="$tempVideoList"
+  [[ -n "$audioList" && -n "$tempAudioList" ]] && audioList+=$'\n'"$tempAudioList"
+  [[ -z "$audioList" && -n "$tempAudioList" ]] && audioList="$tempAudioList"
 
   # get unique values
+  IFS=$'\n'
   readarray -t imageList <<< $(sort -u <<< "$imageList")
   readarray -t videoList <<< $(sort -u <<< "$videoList")
   readarray -t audioList <<< $(sort -u <<< "$audioList")
@@ -746,6 +764,9 @@ echo; exit
 
 # OPTIONS
 
+HELP
+*) printHelp;;
+
 INCLUDE
 image*|photo*|picture*|pic*) images='true';;
 movie*|video*|vid*) videos='true';;
@@ -772,6 +793,11 @@ n|no|off|'false'|'disable') recursive='false';;
 DEEP SEARCH
 default|y|yes|on|'true'|'enable') deepSearch='true';;
 n|no|off|'false'|'disable') deepSearch='false';;
+*) error 'badParam' "$id or $name" "$arg";;
+
+HIDDEN SEARCH
+default|y|yes|on|'true'|'enable') hiddenSearch='true';;
+n|no|off|'false'|'disable') hiddenSearch='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 OVERWRITE
@@ -840,6 +866,3 @@ LOGLEVEL
 0|e|err|error*) loglevel='error';;
 default) error 'noParam' "$id or $name";;
 *) error 'badParam' "$id or $name" "$arg";;
-
-HELP
-*) printHelp;;
