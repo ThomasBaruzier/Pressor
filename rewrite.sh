@@ -654,9 +654,10 @@ checkFiles() {
   includeExtentions=($includeExtentions)
 
   # build file list
-  [ "$recursive" != 'true' ] && toAdd=' -maxdepth 1 '
+  [ "$recursive" != 'true' ] && toAdd=' -maxdepth 1'
   for i in "${inputs[@]}"; do
-    inputList+=$(find "$i" $toAdd -type f 2>/dev/null)$'\n'
+    [ "$hiddenSearch" != 'true' ] && inputList+=$(find "$i" $toAdd -type f -not -path '*/.*' 2>/dev/null)$'\n'
+    [ "$hiddenSearch" = 'true' ] && inputList+=$(find "$i" $toAdd -type f 2>/dev/null)$'\n'
   done
 
   if [ "$deepSearch" = 'true' ]; then
