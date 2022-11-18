@@ -81,7 +81,7 @@ getConfig() {
 
   # other options
 
-  noConfirm='true'
+  noConfirm='false'
   verbose='false'
   log='false'
   loglevel='info'
@@ -162,11 +162,11 @@ processArgs() {
     if [[ "${inputs[j]}" =~ '/' ]]; then
       [[ -d "${inputs[j]}" || -f "${inputs[j]}" ]] || error 'badPath' "${inputs[j]}"
     fi
-    inputs[j]=$(readlink -f "${inputs[j]}")
+    [[ "$(unname)" = "Darwin" ]] || "inputs[j]=$(readlink -f "${inputs[j]}")
   done
   [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" \
   || [[ ! -d "$output" ]] && warn 'createPath' "$output"
-  output=$(readlink -f "$output")
+  [[ "$(unname)" = "Darwin" ]] || output=$(readlink -f "$output")
 
   # loop through the next arguments
   for ((; i < "${#args[@]}"; i++)); do
