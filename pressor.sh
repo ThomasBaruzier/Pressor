@@ -162,11 +162,11 @@ processArgs() {
     if [[ "${inputs[j]}" =~ '/' ]]; then
       [[ -d "${inputs[j]}" || -f "${inputs[j]}" ]] || error 'badPath' "${inputs[j]}"
     fi
-    [[ "$(unname)" = "Darwin" ]] || "inputs[j]=$(readlink -f "${inputs[j]}")
+    [[ "$(uname)" = "Darwin" ]] || inputs[j]=$(readlink -f "${inputs[j]}")
   done
   [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" \
   || [[ ! -d "$output" ]] && warn 'createPath' "$output"
-  [[ "$(unname)" = "Darwin" ]] || output=$(readlink -f "$output")
+  [[ "$(uname)" = "Darwin" ]] || output=$(readlink -f "$output")
 
   # loop through the next arguments
   for ((; i < "${#args[@]}"; i++)); do
@@ -278,6 +278,7 @@ optionBuilder() {
       optionTasks+="${options[i]};"
 
     # build and fire the function
+    [[ "$(uname)" = "Darwin" ]] && availableThreads="$(sysctl -n hw.ncpu)" || availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
     elif [[ -n "$optionName" ]]; then
       source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); name='"$optionName"'; id='"$optionID"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do arg="${optionArgs[index]}"; case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
       unset optionName optionID optionCases optionTasks index
@@ -919,7 +920,6 @@ none|nothing) cropImages='false'; cropVideos='false';;
 *) cropAdvanced;;
 
 THREADS
-[[ "$(unname)" = "Darwin" ]] && availableThreads="$(sysctl -n hw.ncpu)" || availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
 all|max|everything) threads="$availableThreads";;
 [1-9]|[0-9][0-9]|[0-9][0-9][0-9]) (( "$arg" > "$availableThreads" )) && warn "maxThreads" "$availableThreads" "$arg" || threads="$(($arg))";;
 default) warn 'noParam' "$id or $name" "$arg" "$availableThreads threads" && threads="$availableThreads";;
