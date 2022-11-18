@@ -18,6 +18,7 @@ getConfig() {
   recursive='true'
   deepSearch='false'
   hiddenSearch='false'
+  skipCompressed='true'
   overwrite='false'
 
   # encoding options
@@ -26,8 +27,8 @@ getConfig() {
   videoCodec='av1'
   audioCodec='opus'
 
-  jpgQuality=''
-  jpgEfficiency=''
+  jpgQuality='4'
+  jpgEfficiency='slower'
   jpgDepth=''
   avifMinQuality='0'
   avifMaxQuality='40'
@@ -314,6 +315,10 @@ printHelp() {
   echo "      > Default : false"
   echo
   echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
+  echo "      > Skip already compressed files"
+  echo "      > Default : true"
+  echo
+  echo "  ${optionIDs[i]}, ${optionNames[i]}"; ((i++))
   echo "      > Overwrites already compressed files"
   echo "      > Default : false"
   echo
@@ -387,6 +392,7 @@ printVerbose() {
   echo -en "> Recursive : "; colorise "$recursive"
   echo -en "> Deep search : "; colorise "$deepSearch"
   echo -en "> Hidden search : "; colorise "$hiddenSearch"
+  echo -en "> Skip compressed : "; colorise "$skipCompressed"
   echo -en "> Overwrite : "; colorise "$overwrite"
   echo
   echo -e "\e[34mEncoding options :\e[0m"
@@ -725,6 +731,12 @@ checkFiles() {
   [[ -n "$audioList" && -n "$tempAudioList" ]] && audioList+=$'\n'"$tempAudioList"
   [[ -z "$audioList" && -n "$tempAudioList" ]] && audioList="$tempAudioList"
 
+  if [ "$skipCompressed" = 'true' ]; then
+    imageList=$(grep -Ev 'pressor[.]?.{0,5}$' <<< "$imageList")
+    videoList=$(grep -Ev 'pressor[.]?.{0,5}$' <<< "$videoList")
+    audioList=$(grep -Ev 'pressor[.]?.{0,5}$' <<< "$audioList")
+  fi
+
   # get unique values
   IFS=$'\n'
   readarray -t imageList <<< $(sort -u <<< "$imageList")
@@ -750,7 +762,87 @@ compress() {
     read -p "Start compression ? (y/n) (default=y) : " answer
     [[ "$answer" = 'n' || "$answer" = 'no' ]] && echo -e "Exiting...\n" && exit
   fi
-  echo "Starting compression..."
+
+  if [ "$overwrite" = 'true' ]; then overwrite='-y'
+  elif [ "$overwrite" = 'false' ]; then overwrite='-n'
+  else unset overwrite; fi
+
+  for input in "${imageList[@]}"; do
+    echo -e "\e[32mPIC : $input"
+    case "$imageCodec" in
+      jpg)
+        [[ -n "$jpgQuality" ]] && jpgQuality="-q:v $jpgQuality"
+        [[ -n "$jpgEfficiency" ]] && jpgEfficiency="-preset $jpgEfficiency"
+        ffmpeg -hide_banner -loglevel error "$overwrite" \
+        -i "$input" $jpgQuality $jpgEfficiency "${input%.*}-pressor.jpg"
+        echo -e "\e[36mRESULT : $(du -h $input | cut -f1) > $(du -h ${input%.*}-pressor.jpg | cut -f1)\e[0m";;
+      *) echo "> $imageCodec is not implemented yet";;
+    esac
+  done
+
+  for input in "${videoList[@]}"; do
+    echo -e "\e[33mVID : $input"
+    case "$videoCodec" in
+      x264)
+        [[ -n "$x264Quality" ]] && x264Quality="-crf $x264Quality"
+        [[ -n "$x264Efficiency" ]] && x264Efficiency="-preset $x264Efficiency"
+        ffmpeg -hide_banner -loglevel error "$overwrite" -i "$input" \
+        -c:v libx264 $x264Quality $x264Efficiency "${input%.*}-pressor.mp4" && \
+        echo -e "\e[36mRESULT : $(du -h $input | cut -f1) > $(du -h ${input%.*}-pressor.mp4 | cut -f1)\e[0m";;
+      x265)
+        [[ -n "$x265Quality" ]] && x265Quality="-crf $x265Quality"
+        [[ -n "$x265Efficiency" ]] && x265Efficiency="-preset $x265Efficiency"
+        ffmpeg -hide_banner -loglevel error "$overwrite" -i "$input" \
+        -c:v libx265 $x265Quality $x265Efficiency "${input%.*}-pressor.mp4" && \
+        echo -e "\e[36mRESULT : $(du -h $input | cut -f1) > $(du -h ${input%.*}-pressor.mp4 | cut -f1)\e[0m";;
+      vp9)
+        ffmpeg -y -i "$input" -loglevel error -stats \
+          -c:v libvpx-vp9 -b:v 0 -crf "$vp9Quality" \
+          -aq-mode 2 -an -pix_fmt yuv420p \
+          -tile-columns 0 -tile-rows 0 \
+          -frame-parallel 0 -cpu-used 8 \
+          -auto-alt-ref 1 -lag-in-frames 25 -g 999 \
+          -pass 1 -f webm -threads "$threads" \
+          /dev/null && \
+        ffmpeg "$overwrite" -i "$input" -loglevel error -stats \
+          -c:v libvpx-vp9 -b:v 0 -crf "$vp9Quality" \
+          -aq-mode 2 -pix_fmt yuv420p -c:a libopus -b:a "$vp9AudioQuality"k \
+          -tile-columns 2 -tile-rows 2 \
+          -frame-parallel 0 -cpu-used "$vp9Efficiency" \
+          -auto-alt-ref 1 -lag-in-frames 25 \
+          -pass 2 -g 999 -threads "$threads" \
+          "${input%.*}-pressor.mkv" && \
+        rm ffmpeg2pass-0.log && \
+        echo -e "\e[36mRESULT : $(du -h $input | cut -f1) > $(du -h ${input%.*}-pressor.mkv | cut -f1)\e[0m";;
+      av1)
+        echo -e "\e[33mRunning aomenc - pass 1...\e[0m"
+        ffmpeg -y -i "$input" -strict -1 -loglevel error -pix_fmt yuv420p \
+          -f yuv4mpegpipe - | aomenc - --passes=2 --pass=1 --cpu-used="$av1Efficiency" --threads="$threads" \
+          --end-usage=q --cq-level="$av1Quality" --bit-depth=8 --enable-fwd-kf=1 --kf-max-dist=300 --kf-min-dist=12 \
+          --tile-columns=0 --tile-rows=0 --sb-size=64 --lag-in-frames=48 --arnr-strength=2 --arnr-maxframes=3 \
+          --aq-mode=0 --deltaq-mode=1 --enable-qm=1 --tune=psnr --tune-content=default --fpf="pass-stats" -o NUL && \
+        echo -e "\e[A\e[2K\e[A\e[2K\e[33mRunning aomenc - pass 2...\e[0m" && \
+        ffmpeg -y -i "$input" -strict -1 -loglevel error -pix_fmt yuv420p \
+          -f yuv4mpegpipe - | aomenc - --passes=2 --pass=2 --cpu-used="$av1Efficiency" --threads="$threads" \
+          --end-usage=q --cq-level="$av1Quality" --bit-depth=8 --enable-fwd-kf=1 --kf-max-dist=300 --kf-min-dist=12 \
+          --tile-columns=0 --tile-rows=0 --sb-size=64 --lag-in-frames=48 --arnr-strength=2 --arnr-maxframes=3 \
+          --aq-mode=0 --deltaq-mode=1 --enable-qm=1 --tune=psnr --tune-content=default \
+          --fpf="pass-stats" -o "${input%.*}-pressor.mkv"
+        echo -e "\e[A\e[2K\e[A\e[2K\e[32mRunning aomenc - Done\e[0m"
+        rm 'pass-stats' && \
+        echo -e "\e[36mRESULT : $(du -h $input | cut -f1) > $(du -h ${input%.*}-pressor.mkv | cut -f1)\e[0m";;
+      *) echo "> $videoCodec is not implemented yet";;
+    esac
+  done
+
+  for input in "${audioList[@]}"; do
+    echo -e "\e[35mAUD : $input"
+    case "$audioCodec" in
+
+      *) echo "> $audioCodec is not implemented yet";;
+    esac
+  done
+  echo -e '\e[0m'
 
 }
 
@@ -799,6 +891,11 @@ n|no|off|'false'|'disable') deepSearch='false';;
 HIDDEN SEARCH
 default|y|yes|on|'true'|'enable') hiddenSearch='true';;
 n|no|off|'false'|'disable') hiddenSearch='false';;
+*) error 'badParam' "$id or $name" "$arg";;
+
+SKIP COMPRESSED
+default|y|yes|on|'true'|'enable') skipCompressed='true';;
+n|no|off|'false'|'disable') skipCompressed='false';;
 *) error 'badParam' "$id or $name" "$arg";;
 
 OVERWRITE
