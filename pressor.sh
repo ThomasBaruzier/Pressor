@@ -166,7 +166,7 @@ processArgs() {
   done
   [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" \
   || [[ ! -d "$output" ]] && warn 'createPath' "$output"
-  [[ "$(uname)" = "Darwin" ]] && inputs[j]=$(realpath -f "${inputs[j]}") || output=$(readlink -f "$output")
+  [[ "$(uname)" = "Darwin" ]] && inputs[j]=$(realpath "$output") || output=$(readlink -f "$output")
 
   # loop through the next arguments
   for ((; i < "${#args[@]}"; i++)); do
