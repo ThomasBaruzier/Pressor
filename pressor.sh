@@ -82,7 +82,7 @@ getConfig() {
   # other options
 
   noConfirm='false'
-  verbose='false'
+  verbose='true'
   log='false'
   loglevel='info'
 
@@ -162,11 +162,11 @@ processArgs() {
     if [[ "${inputs[j]}" =~ '/' ]]; then
       [[ -d "${inputs[j]}" || -f "${inputs[j]}" ]] || error 'badPath' "${inputs[j]}"
     fi
-    [[ "$(uname)" = "Darwin" ]] || inputs[j]=$(readlink -f "${inputs[j]}")
+    [[ "$(uname)" = "Darwin" ]] && inputs[j]=$(realpath "${inputs[j]}") || inputs[j]=$(readlink -f "${inputs[j]}")
   done
   [[ "$output" =~ '/' ]] && [[ -f "$output" ]] && error 'badPath' "$output" \
   || [[ ! -d "$output" ]] && warn 'createPath' "$output"
-  [[ "$(uname)" = "Darwin" ]] || output=$(readlink -f "$output")
+  [[ "$(uname)" = "Darwin" ]] && inputs[j]=$(realpath -f "${inputs[j]}") || output=$(readlink -f "$output")
 
   # loop through the next arguments
   for ((; i < "${#args[@]}"; i++)); do
@@ -278,7 +278,6 @@ optionBuilder() {
       optionTasks+="${options[i]};"
 
     # build and fire the function
-    [[ "$(uname)" = "Darwin" ]] && availableThreads="$(sysctl -n hw.ncpu)" || availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
     elif [[ -n "$optionName" ]]; then
       source <(echo "${optionName:2}Option"'() { optionArgs=(${*}); name='"$optionName"'; id='"$optionID"'; '"$optionTasks"' for ((index=0; index < "${#optionArgs[@]}"; index++)); do arg="${optionArgs[index]}"; case "${optionArgs[index]}" in '"$optionCases"' esac; done; }')
       unset optionName optionID optionCases optionTasks index
@@ -846,6 +845,8 @@ compress() {
   echo -e '\e[0m'
 
 }
+
+[[ "$(uname)" = "Darwin" ]] && availableThreads="$(sysctl -n hw.ncpu)" || availableThreads="$(($(cat /proc/cpuinfo | grep -Po 'processor[^0-9]+\K[0-9]+$' | tail -n 1)+1))"
 
 # MAIN PROGRAM
 
