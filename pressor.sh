@@ -23,8 +23,8 @@ getConfig() {
 
   # encoding options
 
-  imageCodec='avif'
-  videoCodec='av1'
+  imageCodec='jpg'
+  videoCodec='vp9'
   audioCodec='opus'
 
   jpgQuality='4'
