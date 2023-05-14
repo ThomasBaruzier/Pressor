@@ -87,7 +87,7 @@ getConfig() {
   loglevel='info'
 
   # define extentions
-  imageExtentions='jpg jpeg png tiff tif raw gif bmp webp heif heic avif jxl'
+  imageExtentions='jpg jpeg png tiff tif raw gif bmp webp heif heic avif jxl nef'
   videoExtentions='mp4 mkv 3pg 3gp m4v f4v f4a m4b m4r f4b vob ogg ogv drc gifv mng qt yuv rm rmvb asf amv mp svi mov wmv wma webm flv avi vvc 266'
   audioExtentions='mp3 aac flac aiff alac m4a cda wav opus'
 
@@ -776,6 +776,14 @@ compress() {
         ffmpeg -hide_banner -loglevel error "$overwrite" \
         -i "$input" $jpgQuality $jpgEfficiency "${input%.*}-pressor.jpg"
         echo -e "\e[36mRESULT : $(du -h $input | cut -f1) > $(du -h ${input%.*}-pressor.jpg | cut -f1)\e[0m";;
+      avif)
+        [[ -n "$avifMinQuality" ]] && avifMinQuality="--min ${avifMinQuality}"
+        [[ -n "$avifMaxQuality" ]] && avifMaxQuality="--max ${avifMaxQuality}"
+        [[ -n "$avifEfficiency" ]] && avifEfficiency="--speed ${avifEfficiency}"
+        [[ -n "$avifDepth" ]] && avifDepth="--depth ${avifDepth}"
+        # ffmpeg -hide_banner -loglevel error -i "$input" -f yuv4mpegpipe - | \
+        avifenc $avifEfficiency $avifMinQuality $avifMaxQuality $avifDepth --jobs "$threads" "$input" "${input%.*}-pressor.avif"
+        echo -e "\e[36mRESULT : $(du -h $input | cut -f1) > $(du -h ${input%.*}-pressor.avif | cut -f1)\e[0m";;
       *) echo "> $imageCodec is not implemented yet";;
     esac
   done
