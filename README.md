@@ -1,3 +1,5 @@
+# Project is outdated. Please do not use it.
+
 # Pressor
 
 WARNING : THIS PROGRAM IS EXPERIMENTAL, AND NOT FINISHED! SOME FEATURES ARE MISSING!
